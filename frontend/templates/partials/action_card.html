@@ -34,6 +34,13 @@
     {% endif %}
 
     <!-- Approve / Reject -->
+    <input
+        type="text"
+        id="reason-{{ sid }}"
+        name="reason"
+        class="reason-input"
+        placeholder="Reason for denial (optional)…"
+    />
     <div class="btn-action-row">
         <button
             class="btn-approve"
@@ -48,6 +55,7 @@
             hx-post="/actions/reject/{{ sid }}"
             hx-target="closest .action-card"
             hx-swap="outerHTML"
+            hx-include="#reason-{{ sid }}"
         >
             ✕ &thinsp;Deny
         </button>
