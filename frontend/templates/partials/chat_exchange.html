@@ -1,0 +1,23 @@
+<!-- User message -->
+<div class="msg-user">
+    <div class="msg-user-body">
+        <div class="msg-user-bubble">{{ user_message }}</div>
+        <div class="msg-meta">{{ channel }} · you</div>
+    </div>
+</div>
+
+<!-- Agent message -->
+<div class="msg-agent">
+    <div class="msg-avatar">✧</div>
+    <div class="msg-agent-body">
+        {% if pending %}
+        <div class="msg-agent-bubble pending">
+            <span class="pending-orbs"><span></span><span></span><span></span></span>{{ agent_message }}
+        </div>
+        <div class="msg-meta" style="color: var(--gold-dim);">✦ awaiting the seal</div>
+        {% else %}
+        <div class="msg-agent-bubble">{{ agent_message }}</div>
+        <div class="msg-meta">CustomerClaw</div>
+        {% endif %}
+    </div>
+</div>

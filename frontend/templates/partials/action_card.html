@@ -1,0 +1,56 @@
+{% set action = session.pending_action %}
+{% set sid = session.session_id %}
+
+<div class="action-card">
+
+    <!-- Header -->
+    <div class="action-card-header">
+        <div style="display:flex; align-items:center; gap:7px;">
+            <span class="chip chip-gold">✦ High Risk</span>
+            <span class="chip chip-outline">{{ session.channel }}</span>
+        </div>
+        <span class="action-sid">{{ sid }}</span>
+    </div>
+
+    <!-- Tool name -->
+    <div style="display:flex; align-items:baseline; gap:10px;">
+        <span style="font-family:var(--font-display); font-size:8px; letter-spacing:0.16em; color:var(--text-dim); text-transform:uppercase;">Spell</span>
+        <span class="action-tool-name">{{ action.tool_name }}</span>
+    </div>
+
+    <!-- Arguments -->
+    <div class="action-args">
+        {% for key, val in action.arguments.items() %}
+        <div class="action-arg-row">
+            <span class="action-arg-key">{{ key }}:</span>
+            <span class="action-arg-val">{{ val }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Reasoning -->
+    {% if action.reasoning %}
+    <div class="action-reasoning">{{ action.reasoning }}</div>
+    {% endif %}
+
+    <!-- Approve / Reject -->
+    <div class="btn-action-row">
+        <button
+            class="btn-approve"
+            hx-post="/actions/approve/{{ sid }}"
+            hx-target="closest .action-card"
+            hx-swap="outerHTML"
+        >
+            ✦ &thinsp;Grant
+        </button>
+        <button
+            class="btn-reject"
+            hx-post="/actions/reject/{{ sid }}"
+            hx-target="closest .action-card"
+            hx-swap="outerHTML"
+        >
+            ✕ &thinsp;Deny
+        </button>
+    </div>
+
+</div>
