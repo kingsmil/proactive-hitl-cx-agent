@@ -1,0 +1,70 @@
+{% set sid_short = session.session_id[-6:] %}
+{% set is_proactive = session.channel == "proactive" %}
+
+<div
+    class="session-item{% if session.status == 'RUNNING' %} session-running{% endif %}"
+    hx-get="/chat/{{ session.session_id }}/pane"
+    hx-target="#commune-content"
+    hx-swap="innerHTML"
+    hx-on::before-request="document.getElementById('commune-content').style.opacity='0.4'"
+    hx-on::after-settle="document.getElementById('commune-content').style.opacity='1'"
+    title="{{ session.session_id }}"
+>
+    <!-- Channel icon + status pulse -->
+    <div class="session-item-icon">
+        {% if session.channel == "whatsapp" %}
+            <!-- WhatsApp icon (greyed, coming soon) -->
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="opacity:0.35;" title="WhatsApp — coming soon">
+                <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.41A9.954 9.954 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                <path d="M8.5 9.5c.5 1.5 2 3.5 4 4.5l1.5-1.5 2 2c-1 1.5-3 2-5 1C8 14.5 7 11.5 7.5 9.5L8.5 9.5z" stroke="currentColor" stroke-width="1" fill="currentColor" opacity="0.6"/>
+            </svg>
+        {% elif is_proactive %}
+            <!-- Proactive / system icon -->
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color:var(--gold-dim);">
+                <path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5 4.3 12.4l.7-4.1L2 5.4l4.2-.8L8 1z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/>
+            </svg>
+        {% else %}
+            <!-- Web / globe icon -->
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color:var(--lav-dim);">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2"/>
+                <ellipse cx="8" cy="8" rx="2.5" ry="6" stroke="currentColor" stroke-width="1"/>
+                <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1"/>
+            </svg>
+        {% endif %}
+
+        <!-- Running pulse -->
+        {% if session.status == "RUNNING" %}
+        <span class="session-pulse"></span>
+        {% endif %}
+    </div>
+
+    <!-- Session info -->
+    <div class="session-item-body">
+        <div class="session-item-top">
+            <code class="session-sigil-small">{{ sid_short }}</code>
+
+            <!-- Status chip -->
+            {% if session.status == "RUNNING" %}
+                <span class="chip chip-sage" style="font-size:7px; padding:1px 5px;">Running</span>
+            {% elif session.status == "PAUSED" %}
+                <span class="chip chip-gold" style="font-size:7px; padding:1px 5px;">Paused</span>
+            {% elif session.status == "DONE" %}
+                <span class="chip chip-outline" style="font-size:7px; padding:1px 5px;">Done</span>
+            {% endif %}
+
+            <!-- AI badge -->
+            <span class="ai-badge{% if session.ai_enabled %} ai-badge-on{% endif %}"
+                  title="{% if session.ai_enabled %}AI enabled{% else %}Manual mode{% endif %}">
+            </span>
+        </div>
+
+        <!-- Last message preview -->
+        <div class="session-item-preview">
+            {% if session.last_message %}
+                {{ session.last_message }}{% if session.last_message | length >= 80 %}…{% endif %}
+            {% else %}
+                <em>No messages yet</em>
+            {% endif %}
+        </div>
+    </div>
+</div>

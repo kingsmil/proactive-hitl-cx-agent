@@ -1,0 +1,24 @@
+<div class="thought-entry thought-llm">
+    <code class="thought-sigil" title="{{ session_id }}">{{ session_id[-6:] }}</code>
+    <span class="node-tag node-llm">llm</span>
+    <details class="thought-expand">
+        <summary class="thought-expand-summary">
+            <span class="thought-text">{{ preview }}</span>
+            <span class="thought-expand-arrow">▸</span>
+        </summary>
+        <div class="thought-expand-body">
+            {% if request_messages %}
+            <div class="thought-section">
+                <div class="thought-section-label">Request · {{ request_count }} messages</div>
+                <pre class="thought-code">{{ request_messages }}</pre>
+            </div>
+            {% endif %}
+            {% if response_text %}
+            <div class="thought-section">
+                <div class="thought-section-label">Response</div>
+                <pre class="thought-code">{{ response_text }}</pre>
+            </div>
+            {% endif %}
+        </div>
+    </details>
+</div>

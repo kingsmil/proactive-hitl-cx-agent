@@ -141,6 +141,43 @@ class TestSetSessionStatus(DBTestCase):
             self.assertEqual(db.get_session("sess-8")["status"], status)
 
 
+class TestTryTransitionSession(DBTestCase):
+
+    def test_succeeds_when_status_matches(self):
+        db.get_or_create_session("cas-1")
+        db.set_session_status("cas-1", "PAUSED")
+        result = db.try_transition_session("cas-1", "PAUSED", "RUNNING")
+        self.assertTrue(result)
+        self.assertEqual(db.get_session("cas-1")["status"], "RUNNING")
+
+    def test_fails_when_status_does_not_match(self):
+        """Simulates the second of two concurrent approve/reject requests."""
+        db.get_or_create_session("cas-2")
+        db.set_session_status("cas-2", "PAUSED")
+        # First caller wins
+        db.try_transition_session("cas-2", "PAUSED", "RUNNING")
+        # Second caller — session is now RUNNING, not PAUSED
+        result = db.try_transition_session("cas-2", "PAUSED", "RUNNING")
+        self.assertFalse(result)
+        self.assertEqual(db.get_session("cas-2")["status"], "RUNNING")
+
+    def test_approve_and_reject_race_only_one_wins(self):
+        """Approve and reject compete; exactly one must succeed."""
+        db.get_or_create_session("cas-3")
+        db.set_session_status("cas-3", "PAUSED")
+        approve_won = db.try_transition_session("cas-3", "PAUSED", "RUNNING")
+        reject_won  = db.try_transition_session("cas-3", "PAUSED", "RUNNING")
+        # XOR — exactly one wins
+        self.assertNotEqual(approve_won, reject_won)
+
+    def test_does_not_affect_other_sessions(self):
+        db.get_or_create_session("cas-4a")
+        db.get_or_create_session("cas-4b")
+        db.set_session_status("cas-4a", "PAUSED")
+        db.try_transition_session("cas-4a", "PAUSED", "RUNNING")
+        self.assertEqual(db.get_session("cas-4b")["status"], "RUNNING")
+
+
 class TestAppendMessageAndGetHistory(DBTestCase):
 
     def test_single_message(self):

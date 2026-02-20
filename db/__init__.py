@@ -37,20 +37,56 @@ def init_db() -> None:
             status          TEXT NOT NULL DEFAULT 'RUNNING',
             channel         TEXT NOT NULL DEFAULT 'web',
             message_history TEXT NOT NULL DEFAULT '[]',
+            ai_enabled      INTEGER NOT NULL DEFAULT 1,
             created_at      TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS pending_actions (
-            action_id   TEXT PRIMARY KEY,
-            session_id  TEXT NOT NULL REFERENCES sessions(session_id),
-            tool_name   TEXT NOT NULL,
-            arguments   TEXT NOT NULL,
-            reasoning   TEXT,
-            created_at  TEXT NOT NULL
+            action_id    TEXT PRIMARY KEY,
+            session_id   TEXT NOT NULL REFERENCES sessions(session_id),
+            tool_name    TEXT NOT NULL,
+            arguments    TEXT NOT NULL,
+            reasoning    TEXT,
+            tool_call_id TEXT,
+            created_at   TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         );
     """)
     conn.commit()
+    # Migration: add ai_enabled column for existing databases
+    try:
+        conn.execute(
+            "ALTER TABLE sessions ADD COLUMN ai_enabled INTEGER NOT NULL DEFAULT 1"
+        )
+        conn.commit()
+    except Exception:
+        pass  # Column already exists
     seed_orders()
+
+
+# ---------------------------------------------------------------------------
+# Settings helpers
+# ---------------------------------------------------------------------------
+
+def get_setting(key: str, default: str = "") -> str:
+    row = _conn().execute(
+        "SELECT value FROM settings WHERE key = ?", (key,)
+    ).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(key: str, value: str) -> None:
+    conn = _conn()
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -61,8 +97,9 @@ def get_or_create_session(session_id: str, channel: str = "web") -> Dict:
     conn = _conn()
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
-        "INSERT OR IGNORE INTO sessions (session_id, status, channel, message_history, created_at) "
-        "VALUES (?, 'RUNNING', ?, '[]', ?)",
+        "INSERT OR IGNORE INTO sessions "
+        "(session_id, status, channel, message_history, ai_enabled, created_at) "
+        "VALUES (?, 'RUNNING', ?, '[]', 1, ?)",
         (session_id, channel, now),
     )
     conn.commit()
@@ -84,6 +121,19 @@ def set_session_status(session_id: str, status: str) -> None:
     conn.commit()
 
 
+def try_transition_session(session_id: str, from_status: str, to_status: str) -> bool:
+    """Atomically transition status only if the current status matches from_status.
+    Returns True if the row was updated (this caller won), False if it was already
+    in a different state (another caller got there first)."""
+    conn = _conn()
+    cur = conn.execute(
+        "UPDATE sessions SET status = ? WHERE session_id = ? AND status = ?",
+        (to_status, session_id, from_status),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
 def append_message(session_id: str, role: str, content: str) -> None:
     conn = _conn()
     row = conn.execute(
@@ -98,6 +148,21 @@ def append_message(session_id: str, role: str, content: str) -> None:
     conn.commit()
 
 
+def append_raw_message(session_id: str, message: dict) -> None:
+    """Append a full message dict to history (e.g. assistant tool_calls or tool results)."""
+    conn = _conn()
+    row = conn.execute(
+        "SELECT message_history FROM sessions WHERE session_id = ?", (session_id,)
+    ).fetchone()
+    history = json.loads(row["message_history"]) if row else []
+    history.append(message)
+    conn.execute(
+        "UPDATE sessions SET message_history = ? WHERE session_id = ?",
+        (json.dumps(history), session_id),
+    )
+    conn.commit()
+
+
 def get_history(session_id: str) -> List[Dict]:
     row = _conn().execute(
         "SELECT message_history FROM sessions WHERE session_id = ?", (session_id,)
@@ -105,20 +170,70 @@ def get_history(session_id: str) -> List[Dict]:
     return json.loads(row["message_history"]) if row else []
 
 
+def get_all_sessions() -> List[Dict]:
+    """Return all sessions ordered newest-first, with last_message computed."""
+    rows = _conn().execute(
+        "SELECT * FROM sessions ORDER BY created_at DESC"
+    ).fetchall()
+    result = []
+    for row in rows:
+        s = dict(row)
+        history = json.loads(s.get("message_history", "[]"))
+        last_msg = ""
+        for msg in reversed(history):
+            role = msg.get("role")
+            content = msg.get("content")
+            if role in ("user", "assistant") and content and isinstance(content, str):
+                last_msg = content[:80]
+                break
+        s["last_message"] = last_msg
+        result.append(s)
+    return result
+
+
+def set_ai_enabled(session_id: str, enabled: bool) -> None:
+    conn = _conn()
+    conn.execute(
+        "UPDATE sessions SET ai_enabled = ? WHERE session_id = ?",
+        (1 if enabled else 0, session_id),
+    )
+    conn.commit()
+
+
+def append_agent_message(session_id: str, content: str) -> None:
+    """Append a manual CS-agent reply (role='assistant', is_manual=True)."""
+    conn = _conn()
+    row = conn.execute(
+        "SELECT message_history FROM sessions WHERE session_id = ?", (session_id,)
+    ).fetchone()
+    history = json.loads(row["message_history"]) if row else []
+    history.append({"role": "assistant", "content": content, "is_manual": True})
+    conn.execute(
+        "UPDATE sessions SET message_history = ? WHERE session_id = ?",
+        (json.dumps(history), session_id),
+    )
+    conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # Pending-action helpers
 # ---------------------------------------------------------------------------
 
 def save_pending_action(
-    session_id: str, tool_name: str, arguments: dict, reasoning: str
+    session_id: str,
+    tool_name: str,
+    arguments: dict,
+    reasoning: str,
+    tool_call_id: str = None,
 ) -> str:
     action_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     conn = _conn()
     conn.execute(
-        "INSERT INTO pending_actions (action_id, session_id, tool_name, arguments, reasoning, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (action_id, session_id, tool_name, json.dumps(arguments), reasoning, now),
+        "INSERT INTO pending_actions "
+        "(action_id, session_id, tool_name, arguments, reasoning, tool_call_id, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (action_id, session_id, tool_name, json.dumps(arguments), reasoning, tool_call_id, now),
     )
     conn.commit()
     return action_id

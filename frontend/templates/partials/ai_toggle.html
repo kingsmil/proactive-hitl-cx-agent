@@ -1,0 +1,11 @@
+<!-- Inner content of #ai-toggle — swapped by POST /sessions/{id}/toggle-ai -->
+<button
+    class="btn-ai-toggle{% if ai_enabled %} ai-on{% endif %}"
+    hx-post="/sessions/{{ session_id }}/toggle-ai"
+    hx-target="#ai-toggle"
+    hx-swap="innerHTML"
+    title="{% if ai_enabled %}AI is handling this session — click to take over{% else %}Manual mode — click to hand back to AI{% endif %}"
+>
+    <span class="ai-toggle-pip"></span>
+    <span class="ai-toggle-label">{% if ai_enabled %}AI Active{% else %}Manual Mode{% endif %}</span>
+</button>

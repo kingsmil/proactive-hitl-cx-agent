@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}CustomerClaw — Operator's Sanctum{% endblock %}
 
+{% set ai_on = session.ai_enabled | default(1) %}
+
 {% block content %}
 <div style="display:flex; flex-direction:column; height:100vh; height:100dvh;">
 
@@ -27,9 +29,23 @@
                 <div class="live-orb"></div>
                 <span style="font-family:var(--font-display); font-size:8px; letter-spacing:0.15em; color:var(--sage-dim); text-transform:uppercase;">Attuned</span>
             </div>
+
+            <button
+                class="btn-gear"
+                hx-get="/settings"
+                hx-target="#settings-modal"
+                hx-swap="innerHTML"
+                title="Configuration"
+            >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.3"/>
+                    <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                </svg>
+            </button>
+
             <div class="header-session" style="display:flex; align-items:center; gap:7px;">
                 <span style="font-family:var(--font-display); font-size:8px; letter-spacing:0.15em; color:var(--text-dim); text-transform:uppercase;">Sigil</span>
-                <code style="
+                <code id="current-session-sigil" style="
                     font-family: var(--font-mono);
                     font-size: 11px;
                     color: var(--gold-dim);
@@ -41,7 +57,7 @@
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
-                ">{{ session_id }}</code>
+                ">{{ session_id[-6:] }}</code>
             </div>
         </div>
     </header>
@@ -51,15 +67,32 @@
 
         <!-- ─── Pane 1 · Commune ──────────────────────────────────────── -->
         <div class="panel pane active" id="pane-comms" style="display:flex; flex-direction:column; overflow:hidden;">
-            <div class="panel-header">
+            <div class="panel-header" style="align-items:center;">
                 <div class="panel-header-title">
                     <span class="panel-star">✦</span>
                     <span>Commune</span>
+                    <span class="chip chip-outline" style="font-size:7px; margin-left:4px;">
+                        {{ session.channel | default("web") | title }}
+                    </span>
                 </div>
-                <span style="font-family:var(--font-display); font-size:8px; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase;">Web Channel</span>
+
+                <!-- AI toggle -->
+                <div id="ai-toggle">
+                    <button
+                        class="btn-ai-toggle{% if ai_on %} ai-on{% endif %}"
+                        hx-post="/sessions/{{ session_id }}/toggle-ai"
+                        hx-target="#ai-toggle"
+                        hx-swap="innerHTML"
+                        title="{% if ai_on %}AI is handling — click to take over{% else %}Manual mode — click to hand to AI{% endif %}"
+                    >
+                        <span class="ai-toggle-pip"></span>
+                        <span class="ai-toggle-label">{% if ai_on %}AI Active{% else %}Manual Mode{% endif %}</span>
+                    </button>
+                </div>
             </div>
 
-            <div id="chat-history" style="
+            <!-- Chat history -->
+            <div id="commune-content" style="
                 flex: 1;
                 overflow-y: auto;
                 padding: 14px 16px;
@@ -67,57 +100,59 @@
                 flex-direction: column;
                 gap: 2px;
                 -webkit-overflow-scrolling: touch;
+                transition: opacity 0.15s ease;
             ">
-                <div class="msg-agent">
-                    <div class="msg-avatar">✧</div>
-                    <div class="msg-agent-body">
-                        <div class="msg-agent-bubble">
-                            Greetings, traveller. What brings you to seek counsel today?
-                        </div>
-                        <div class="msg-meta">CustomerClaw</div>
-                    </div>
+                <!-- Placeholder on first load — session is newly created -->
+                <div style="
+                    display:flex; flex-direction:column; align-items:center; justify-content:center;
+                    height:100%; gap:10px; color:var(--text-dim); text-align:center; padding:24px;
+                ">
+                    <div style="font-size:26px; opacity:0.25;">✦</div>
+                    <span style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">Select a conversation</span>
+                    <span style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-ghost); line-height:1.7;">
+                        Click a session in the Inbox<br/>or inject a new customer message.
+                    </span>
                 </div>
             </div>
 
-            <!-- Weaving indicator -->
-            <div id="chat-indicator" class="htmx-indicator" style="
-                padding: 7px 16px;
-                border-top: 1px solid var(--border-mist);
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                flex-shrink: 0;
-            ">
-                <div class="weaving-dots"><span>✦</span><span>✦</span><span>✦</span></div>
-                <span style="font-family:var(--font-body); font-style:italic; font-size:11px; color:var(--lav-dim);">weaving a response…</span>
-            </div>
-
-            <!-- Input -->
-            <form
-                hx-post="/chat/message"
-                hx-target="#chat-history"
-                hx-swap="beforeend"
-                hx-indicator="#chat-indicator"
-                hx-on::after-request="this.reset()"
-                style="
-                    padding: 10px 16px;
+            <!-- Footer: indicator + agent reply form -->
+            <div id="commune-footer">
+                <!-- Weaving indicator -->
+                <div id="chat-indicator" class="htmx-indicator" style="
+                    padding: 7px 16px;
                     border-top: 1px solid var(--border-mist);
                     display: flex;
-                    gap: 10px;
-                    align-items: flex-end;
+                    align-items: center;
+                    gap: 8px;
                     flex-shrink: 0;
-                "
-            >
-                <input type="hidden" name="session_id" value="{{ session_id }}" />
-                <input
-                    name="message"
-                    autocomplete="off"
-                    required
-                    class="commune-input"
-                    placeholder="speak your query…"
-                />
-                <button type="submit" class="btn-send">Send</button>
-            </form>
+                ">
+                    <div class="weaving-dots"><span>✦</span><span>✦</span><span>✦</span></div>
+                    <span style="font-family:var(--font-body); font-style:italic; font-size:11px; color:var(--lav-dim);">weaving a response…</span>
+                </div>
+
+                <!-- CS Agent reply form -->
+                <form
+                    hx-post="/chat/agent-reply/{{ session_id }}"
+                    hx-target="#commune-content"
+                    hx-swap="beforeend"
+                    hx-indicator="#chat-indicator"
+                    hx-on::after-request="this.reset()"
+                    class="commune-reply-form"
+                >
+                    <div class="commune-reply-label">Reply as Agent</div>
+                    <div style="display:flex; gap:10px; align-items:flex-end;">
+                        <textarea
+                            name="content"
+                            required
+                            class="commune-input commune-textarea"
+                            placeholder="{% if ai_on %}AI is handling — disable to reply manually…{% else %}Type your reply to the customer…{% endif %}"
+                            {% if ai_on %}disabled{% endif %}
+                            rows="2"
+                        ></textarea>
+                        <button type="submit" class="btn-send" {% if ai_on %}disabled{% endif %}>Send ➤</button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <!-- ─── Pane 2 · Scrying Glass ────────────────────────────────── -->
@@ -133,6 +168,18 @@
                 </div>
             </div>
 
+            <!-- SSE connector — OOB-swapped on session switch -->
+            <div id="thought-connector"
+                 hx-ext="sse"
+                 sse-connect="/agent/thoughts/{{ session_id }}"
+                 sse-swap="message"
+                 hx-target="#thought-log"
+                 hx-swap="beforeend scroll:#thought-log:bottom"
+            >
+                <!-- Error toast — inside SSE element so named events are received -->
+                <div id="error-toast" sse-swap="error" hx-swap="innerHTML"></div>
+            </div>
+
             <div
                 id="thought-log"
                 style="
@@ -143,10 +190,6 @@
                     flex-direction: column;
                     -webkit-overflow-scrolling: touch;
                 "
-                hx-ext="sse"
-                sse-connect="/agent/thoughts/{{ session_id }}"
-                sse-swap="message"
-                hx-swap="beforeend scroll:#thought-log:bottom"
             >
                 <div style="
                     font-family: var(--font-body);
@@ -162,29 +205,49 @@
             </div>
         </div>
 
-        <!-- ─── Pane 3 · Pending Seals ────────────────────────────────── -->
-        <div class="panel pane" id="pane-queue" style="display:flex; flex-direction:column; overflow:hidden;">
-            <div class="panel-header">
-                <div class="panel-header-title">
-                    <span class="panel-star">✦</span>
-                    <span>Pending Seals</span>
+        <!-- ─── Pane 3 · Inbox / Seals tabs ───────────────────────────── -->
+        <div class="panel pane" id="pane-right" style="display:flex; flex-direction:column; overflow:hidden;">
+
+            <!-- Tab bar -->
+            <div class="panel-header" style="padding:0; flex-shrink:0;">
+                <div style="display:flex; width:100%; border-bottom:1px solid var(--border-mist);">
+                    <button
+                        class="pane-tab active" id="tab-inbox"
+                        hx-get="/inbox"
+                        hx-target="#right-content"
+                        hx-swap="innerHTML"
+                        onclick="activatePaneTab(this)"
+                    >
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;">
+                            <rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+                            <path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+                        </svg>
+                        Inbox
+                        <span id="inbox-count" class="pane-tab-badge"></span>
+                    </button>
+                    <button
+                        class="pane-tab" id="tab-seals"
+                        hx-get="/actions/pending"
+                        hx-target="#right-content"
+                        hx-swap="innerHTML"
+                        onclick="activatePaneTab(this)"
+                    >
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;">
+                            <polygon points="8,2 14,5.5 14,10.5 8,14 2,10.5 2,5.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/>
+                            <polyline points="5.5,8 7.5,10 10.5,6" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Seals
+                        <span id="queue-count" class="pane-tab-badge"></span>
+                    </button>
                 </div>
-                <span id="queue-count" style="font-family:var(--font-display); font-size:8px; letter-spacing:0.12em; color:var(--gold-dim); text-transform:uppercase;"></span>
             </div>
 
+            <!-- Tab content -->
             <div
-                id="action-queue"
-                style="
-                    flex: 1;
-                    overflow-y: auto;
-                    padding: 10px 14px;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 10px;
-                    -webkit-overflow-scrolling: touch;
-                "
-                hx-get="/actions/pending"
-                hx-trigger="load, every 5s"
+                id="right-content"
+                style="flex:1; overflow:hidden; display:flex; flex-direction:column;"
+                hx-get="/inbox"
+                hx-trigger="load"
                 hx-swap="innerHTML"
             ></div>
         </div>
@@ -210,17 +273,20 @@
             </svg>
             Scry
         </button>
-        <button class="tab-btn" id="btn-queue" role="tab" aria-selected="false" onclick="switchTab('queue')">
+        <button class="tab-btn" id="btn-right" role="tab" aria-selected="false" onclick="switchTab('right')">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <polygon points="8,2 14,5.5 14,10.5 8,14 2,10.5 2,5.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/>
-                <polyline points="5.5,8 7.5,10 10.5,6" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+                <path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
             </svg>
-            Seals
-            <span class="queue-badge" id="mobile-queue-badge"></span>
+            Inbox
+            <span class="queue-badge" id="mobile-inbox-badge"></span>
         </button>
     </nav>
 
 </div>
+
+<!-- Settings modal mount point -->
+<div id="settings-modal"></div>
 
 <script>
     function switchTab(id) {
@@ -234,16 +300,29 @@
         btn.classList.add('active');
         btn.setAttribute('aria-selected', 'true');
         if (id === 'comms') {
-            var h = document.getElementById('chat-history');
+            var h = document.getElementById('commune-content');
             if (h) h.scrollTop = h.scrollHeight;
         }
     }
+
+    function activatePaneTab(el) {
+        document.querySelectorAll('.pane-tab').forEach(function(t) { t.classList.remove('active'); });
+        el.classList.add('active');
+    }
+
     // Mirror queue count to mobile badge
     var qc = document.getElementById('queue-count');
-    var mb = document.getElementById('mobile-queue-badge');
+    var mb = document.getElementById('mobile-inbox-badge');
     if (qc && mb) {
         new MutationObserver(function() { mb.textContent = qc.textContent; })
             .observe(qc, { childList: true, characterData: true, subtree: true });
     }
+
+    // Scroll commune-content to bottom after HTMX swaps
+    document.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target && evt.detail.target.id === 'commune-content') {
+            evt.detail.target.scrollTop = evt.detail.target.scrollHeight;
+        }
+    });
 </script>
 {% endblock %}

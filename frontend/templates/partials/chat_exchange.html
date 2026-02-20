@@ -1,23 +1,40 @@
-<!-- User message -->
-<div class="msg-user">
+<!-- Customer message — left-aligned -->
+<div class="msg-user msg-customer">
     <div class="msg-user-body">
-        <div class="msg-user-bubble">{{ user_message }}</div>
-        <div class="msg-meta">{{ channel }} · you</div>
+        <div class="msg-user-bubble msg-customer-bubble">{{ user_message }}</div>
+        <div class="msg-meta">{{ channel }} · Customer</div>
     </div>
 </div>
 
 <!-- Agent message -->
-<div class="msg-agent">
-    <div class="msg-avatar">✧</div>
-    <div class="msg-agent-body">
-        {% if pending %}
+{% if pending %}
+<div class="msg-agent msg-agent-right" hx-ext="sse" sse-connect="/chat/stream/{{ session_id }}">
+    <div class="msg-agent-body msg-agent-body-right" id="reply-body-{{ session_id }}">
         <div class="msg-agent-bubble pending">
-            <span class="pending-orbs"><span></span><span></span><span></span></span>{{ agent_message }}
+            <!-- tokens stream in here; orbs hide once text arrives -->
+            <span class="streaming-reply" sse-swap="chunk" hx-swap="beforeend"></span>
+            <span class="pending-orbs"><span></span><span></span><span></span></span>
         </div>
-        <div class="msg-meta" style="color: var(--gold-dim);">✦ awaiting the seal</div>
-        {% else %}
-        <div class="msg-agent-bubble">{{ agent_message }}</div>
-        <div class="msg-meta">CustomerClaw</div>
-        {% endif %}
+        <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">✦ awaiting the seal</div>
+        <!-- done event replaces the entire body with the finished bubble -->
+        <div sse-swap="done" hx-swap="innerHTML" hx-target="#reply-body-{{ session_id }}"></div>
+    </div>
+    <div class="msg-avatar">✧</div>
+</div>
+{% else %}
+<div class="msg-agent msg-agent-right">
+    <div class="msg-agent-body msg-agent-body-right">
+        <div class="msg-agent-bubble{% if is_manual %} msg-manual{% endif %}">{{ agent_message }}</div>
+        <div class="msg-meta" style="text-align:right;">
+            {% if is_manual %}
+                <span class="chip chip-gold" style="font-size:7px; padding:1px 5px;">[Agent]</span> CS Agent
+            {% else %}
+                <span class="chip chip-sage" style="font-size:7px; padding:1px 5px;">[AI]</span> CustomerClaw
+            {% endif %}
+        </div>
+    </div>
+    <div class="msg-avatar{% if is_manual %} msg-avatar-agent{% endif %}">
+        {% if is_manual %}⚑{% else %}✧{% endif %}
     </div>
 </div>
+{% endif %}

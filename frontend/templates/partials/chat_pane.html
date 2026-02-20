@@ -1,0 +1,108 @@
+{% set ai_on = session.ai_enabled | default(1) %}
+{% set is_running = session.status == "RUNNING" %}
+
+<!-- ── Main content for #commune-content ── -->
+{% if history %}
+{% for msg in history %}
+{% set role = msg.role %}
+{% set content = msg.content %}
+{% set is_manual = msg.is_manual | default(false) %}
+{% if content %}
+{% include "partials/message_bubble.html" %}
+{% endif %}
+{% endfor %}
+{% else %}
+<div style="
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        height:100%; gap:10px; color:var(--text-dim); text-align:center; padding:24px;
+    ">
+    <div style="font-size:22px; opacity:0.3;">✦</div>
+    <span
+        style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">Awaiting
+        messages</span>
+    <span
+        style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-ghost); line-height:1.7;">
+        Inject a customer message from the Inbox<br />or wait for an inbound contact.
+    </span>
+</div>
+{% endif %}
+
+<!-- SSE stream — always connected for this session -->
+<div id="chat-stream-{{ session_id }}" hx-ext="sse" sse-connect="/chat/stream/{{ session_id }}">
+    {% if is_running and history and history[-1].role == "user" and ai_on %}
+    <!-- Pending AI bubble — streams tokens via SSE -->
+    <div class="msg-agent msg-agent-right">
+        <div class="msg-agent-body msg-agent-body-right" id="reply-body-{{ session_id }}">
+            <div class="msg-agent-bubble pending">
+                <span class="streaming-reply" sse-swap="chunk" hx-swap="beforeend"></span>
+                <span class="pending-orbs"><span></span><span></span><span></span></span>
+            </div>
+            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">✦ awaiting the seal</div>
+            <div sse-swap="done" hx-swap="innerHTML" hx-target="#reply-body-{{ session_id }}"></div>
+        </div>
+        <div class="msg-avatar">✧</div>
+    </div>
+    {% elif is_running and ai_on %}
+    <!-- Processing indicator (post-HITL or tool execution) -->
+    <div class="msg-agent msg-agent-right" style="opacity:0.7;">
+        <div class="msg-agent-body msg-agent-body-right">
+            <div class="msg-agent-bubble pending">
+                <span class="pending-orbs"><span></span><span></span><span></span></span>
+                <span style="font-family:var(--font-body); font-style:italic; font-size:13px;">processing…</span>
+            </div>
+            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">✦ weaving</div>
+        </div>
+        <div class="msg-avatar">✧</div>
+    </div>
+    {% endif %}
+    <!-- Persistent listener — appends new messages (e.g. post-HITL responses) -->
+    <div sse-swap="append" hx-swap="beforeend" hx-target="#commune-content" style="display:none;"></div>
+</div>
+
+
+<!-- ── OOB: update #thought-connector to new session ── -->
+<div id="thought-connector" hx-ext="sse" sse-connect="/agent/thoughts/{{ session_id }}" sse-swap="message"
+    hx-target="#thought-log" hx-swap="beforeend scroll:#thought-log:bottom" hx-swap-oob="true">
+    <div id="error-toast" sse-swap="error" hx-swap="innerHTML"></div>
+</div>
+
+
+<!-- ── OOB: update session sigil in header ── -->
+<code id="current-session-sigil" hx-swap-oob="true">{{ session_id[-6:] }}</code>
+
+
+<!-- ── OOB: update AI toggle ── -->
+<div id="ai-toggle" hx-swap-oob="innerHTML">
+    <button class="btn-ai-toggle{% if ai_on %} ai-on{% endif %}" hx-post="/sessions/{{ session_id }}/toggle-ai"
+        hx-target="#ai-toggle" hx-swap="innerHTML"
+        title="{% if ai_on %}AI is handling — click to take over{% else %}Manual mode — click to hand to AI{% endif %}">
+        <span class="ai-toggle-pip"></span>
+        <span class="ai-toggle-label">{% if ai_on %}AI Active{% else %}Manual Mode{% endif %}</span>
+    </button>
+</div>
+
+
+<!-- ── OOB: update commune footer (agent reply form) ── -->
+<div id="commune-footer" hx-swap-oob="true">
+    <!-- Weaving indicator -->
+    <div id="chat-indicator" class="htmx-indicator" style="
+        padding:7px 16px; border-top:1px solid var(--border-mist);
+        display:flex; align-items:center; gap:8px; flex-shrink:0;
+    ">
+        <div class="weaving-dots"><span>✦</span><span>✦</span><span>✦</span></div>
+        <span style="font-family:var(--font-body); font-style:italic; font-size:11px; color:var(--lav-dim);">weaving a
+            response…</span>
+    </div>
+
+    <!-- CS Agent reply form -->
+    <form hx-post="/chat/agent-reply/{{ session_id }}" hx-target="#commune-content" hx-swap="beforeend"
+        hx-indicator="#chat-indicator" hx-on::after-request="this.reset()" class="commune-reply-form">
+        <div class="commune-reply-label">Reply as Agent</div>
+        <div style="display:flex; gap:10px; align-items:flex-end;">
+            <textarea name="content" required class="commune-input commune-textarea"
+                placeholder="{% if ai_on %}AI is handling — disable to reply manually…{% else %}Type your reply to the customer…{% endif %}"
+                {% if ai_on %}disabled{% endif %} rows="2"></textarea>
+            <button type="submit" class="btn-send" {% if ai_on %}disabled{% endif %}>Send ➤</button>
+        </div>
+    </form>
+</div>

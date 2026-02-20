@@ -1,0 +1,64 @@
+<div class="settings-overlay" onclick="if(event.target===this){document.getElementById('settings-modal').innerHTML=''}">
+    <div class="panel settings-panel">
+        <div class="panel-header">
+            <div class="panel-header-title">
+                <span class="panel-star">✦</span>
+                <span>Arcane Configuration</span>
+            </div>
+            <button
+                class="btn-settings-close"
+                onclick="document.getElementById('settings-modal').innerHTML=''"
+                title="Close"
+            >✕</button>
+        </div>
+
+        <div style="padding: 22px 20px; display: flex; flex-direction: column; gap: 18px;">
+            <form
+                hx-post="/settings"
+                hx-target="#settings-save-status"
+                hx-swap="innerHTML"
+                style="display: flex; flex-direction: column; gap: 16px;"
+            >
+                <div class="settings-field">
+                    <label class="settings-label">Model</label>
+                    <input
+                        name="model"
+                        value="{{ model }}"
+                        class="settings-input"
+                        placeholder="e.g. mistralai/mistral-small-3.1-24b-instruct:free"
+                        autocomplete="off"
+                        spellcheck="false"
+                    />
+                    <div class="settings-hint">Any OpenRouter model ID. Free models end with <code style="font-size:10px;">:free</code>.</div>
+                </div>
+
+                <div class="settings-field">
+                    <label class="settings-label">OpenRouter API Key</label>
+                    <input
+                        type="password"
+                        name="openrouter_api_key"
+                        class="settings-input"
+                        placeholder="{% if has_db_key %}DB key set — enter to replace{% elif has_env_key %}Using $OPENROUTER_API_KEY — enter to override{% else %}sk-or-v1-…{% endif %}"
+                        autocomplete="new-password"
+                    />
+                    <div class="settings-hint">
+                        {% if has_db_key %}
+                            Leave blank to keep the stored key.
+                        {% elif has_env_key %}
+                            Leave blank to keep using the <code style="font-size:10px;">$OPENROUTER_API_KEY</code> env var.
+                        {% else %}
+                            No key detected — enter one here or set <code style="font-size:10px;">OPENROUTER_API_KEY</code> in your env.
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                    <button type="submit" class="btn-approve" style="flex: unset; padding: 9px 22px;">
+                        Seal Configuration
+                    </button>
+                    <div id="settings-save-status"></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

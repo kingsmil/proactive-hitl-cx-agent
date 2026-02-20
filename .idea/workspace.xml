@@ -4,9 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d1215c50-e6a7-406f-a0d3-48b05b5870ae" name="Changes" comment="">
+    <list default="true" id="d1215c50-e6a7-406f-a0d3-48b05b5870ae" name="Changes" comment="add git ignore">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/templates/partials/action_card.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/templates/partials/action_card.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/agent/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/api/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/db/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/templates/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/templates/base.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/templates/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/templates/dashboard.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/templates/partials/chat_exchange.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/templates/partials/chat_exchange.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/templates/partials/thought_entry.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/templates/partials/thought_entry.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_db.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -76,8 +86,16 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1771482457457</updated>
-      <workItem from="1771482476338" duration="21862000" />
+      <workItem from="1771482476338" duration="37314000" />
     </task>
+    <task id="LOCAL-00001" summary="add git ignore">
+      <created>1771521385923</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1771521385923</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -93,5 +111,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="add git ignore" />
+    <option name="LAST_COMMIT_MESSAGE" value="add git ignore" />
   </component>
 </project>
