@@ -427,6 +427,15 @@ async def emit_stream_done(session_id: str, reply: str) -> None:
     await stream_queues[session_id].put({"event": "done", "data": html})
 
 
+async def emit_badge_update(session_id: str, count: int) -> None:
+    """Push a real-time badge count update to the UI via an OOB HTML snippet."""
+    html = '<span id="queue-count" hx-swap-oob="innerHTML">{} awaiting</span>'.format(count)
+    if session_id not in thought_queues:
+        thought_queues[session_id] = asyncio.Queue()
+    # Using the named 'badge' event. The frontend will have a hidden listener for it.
+    await thought_queues[session_id].put({"event": "badge", "data": html})
+
+
 async def emit_stream_error(session_id: str) -> None:
     """Push an error-state bubble as 'done' so the pending bubble doesn't hang."""
     html = (
@@ -502,6 +511,16 @@ async def _run_agent_body(session_id: str) -> None:
         await emit_llm_thought(session_id, llm_preview, history, response)
 
         if finish_reason == "tool_calls":
+            if msg.get("content"):
+                await emit_thought(session_id, "reason", "Thought: " + msg.get("content").strip()[:100] + "...")
+
+            # Rebuild the streaming target so the NEXT iteration's chunks and "done" event have a place to go.
+            cleared_html = _jinja.get_template("partials/streaming_reset.html").render(
+                session_id=session_id
+            )
+            _ensure_stream_queue(session_id)
+            await stream_queues[session_id].put({"event": "done", "data": cleared_html})
+
             # Store the full assistant message so tool results can reference it
             db.append_raw_message(session_id, {
                 "role": "assistant",
@@ -547,6 +566,10 @@ async def _run_agent_body(session_id: str) -> None:
                             "We acknowledge your request and your reason for it. "
                             "We will escalate this to an agent to help approve."
                         )
+                    db.append_message(session_id, "assistant", ack)
+                    # Push badge count to Seals tab as a dedicated SSE event
+                    pending_count = len(db.get_all_paused_sessions())
+                    await emit_badge_update(session_id, pending_count)
                     await emit_stream_done(session_id, ack)
                     return  # halt — resumed via /actions/approve
 
@@ -554,6 +577,5 @@ async def _run_agent_body(session_id: str) -> None:
             await emit_thought(session_id, "reason", "Composing reply…")
             db.append_message(session_id, "assistant", msg["content"])
             await emit_stream_done(session_id, msg["content"])
-            await emit_chat_append(session_id, msg["content"])
             db.set_session_status(session_id, "DONE")
             return

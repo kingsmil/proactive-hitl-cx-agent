@@ -3,7 +3,7 @@
 <!-- New Customer Message form -->
 <div class="inbox-form-wrap">
     <form hx-post="/chat/customer-message" hx-target="#commune-content" hx-swap="innerHTML"
-        hx-on::after-request="this.reset()" class="inbox-form">
+        hx-on::after-request="this.querySelector('textarea').value=''" class="inbox-form">
         <div class="inbox-form-label">
             <span class="panel-star">✦</span>
             New Customer Message
@@ -23,7 +23,8 @@
             <select name="session_id" class="inbox-select" style="flex:1; min-width:0;">
                 <option value="">✦ New Conversation</option>
                 {% for s in sessions %}
-                <option value="{{ s.session_id }}">{{ s.session_id[-6:] }}
+                <option value="{{ s.session_id }}" {% if active_session_id is defined and
+                    active_session_id==s.session_id %} selected{% endif %}>{{ s.session_id[-6:] }}
                     {% if s.status == "RUNNING" %}▸{% elif s.status == "PAUSED" %}⚠{% else %}·{% endif %}
                     {{ s.channel }}
                 </option>

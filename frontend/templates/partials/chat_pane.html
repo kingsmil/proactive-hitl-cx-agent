@@ -59,11 +59,20 @@
     <div sse-swap="append" hx-swap="beforeend" hx-target="#commune-content" style="display:none;"></div>
 </div>
 
+{% if oob_sessions is defined %}
+<!-- ── OOB: refresh inbox so the session dropdown + list update immediately ── -->
+<div id="right-content" hx-swap-oob="innerHTML">
+    {% set sessions = oob_sessions %}
+    {% set active_session_id = session_id %}
+    {% include "partials/inbox.html" %}
+</div>
+{% endif %}
 
 <!-- ── OOB: update #thought-connector to new session ── -->
 <div id="thought-connector" hx-ext="sse" sse-connect="/agent/thoughts/{{ session_id }}" sse-swap="message"
     hx-target="#thought-log" hx-swap="beforeend scroll:#thought-log:bottom" hx-swap-oob="true">
     <div id="error-toast" sse-swap="error" hx-swap="innerHTML"></div>
+    <div sse-swap="badge" hx-swap="none"></div>
 </div>
 
 

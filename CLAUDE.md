@@ -25,6 +25,7 @@ frontend/
       action_card.html             # HITL card with Grant / Deny buttons
       action_queue.html            # Full pending-seals pane (loops action_card)
       action_decision.html         # Post-decision result (approved / rejected)
+      error_toast.html             # Agent error overlay (rose palette, auto-dismiss)
 ```
 
 ### Template Variable Contract (do NOT break these)
@@ -37,6 +38,38 @@ frontend/
 | `action_card.html` | `session` (obj with `.session_id`, `.channel`, `.pending_action`) |
 | `action_queue.html` | `pending_sessions` (list of session objects) |
 | `action_decision.html` | `decision` (`approved`\|`rejected`), `session_id` |
+| `error_toast.html` | `message` (plain-text error string) |
+
+### Settings Component
+
+`partials/settings_modal.html` — modal form loaded on demand into `#settings-modal` via
+gear button in the header (`hx-get="/settings" hx-target="#settings-modal"`).
+
+Variables: `model` (current model ID string), `has_key` (bool — key is set in DB).
+
+`GET /settings` returns the modal. `POST /settings` accepts form fields `model` and
+`openrouter_api_key` and writes non-empty values to the `settings` DB table.
+
+The `settings` table (`key TEXT PRIMARY KEY, value TEXT`) stores runtime overrides.
+`db.get_setting(key, default)` / `db.set_setting(key, value)` are the helpers.
+`agent.call_llm()` reads `"model"` and `"openrouter_api_key"` from DB on every call
+(falling back to `DEFAULT_MODEL` and `$OPENROUTER_API_KEY` env var respectively).
+
+### Error Toast Component
+
+`partials/error_toast.html` is rendered by `agent.emit_error(session_id, message)` and
+pushed into the SSE queue as a named event dict: `{"event": "error", "data": html}`.
+
+`#error-toast` in `dashboard.html` lives inside `#thought-log` (the SSE-connected element)
+and carries `sse-swap="error" hx-swap="innerHTML"`. When a named `error` SSE frame
+arrives, HTMX replaces its inner HTML, triggering the CSS toast-in / toast-out animations.
+
+The div is `position: fixed; top: 20px; right: 20px` so it overlays the viewport
+regardless of its DOM parent. Styled with `.toast-error` (rose palette, Cinzel title,
+Inconsolata body). Auto-dismisses via `@keyframes toast-out` at 5 s.
+
+The SSE generator in `api/app.py` must yield dict items directly from the queue
+(not wrapped again); string items continue to be yielded as `{"data": html}`.
 
 ### API Endpoints wired into the frontend (HTMX)
 

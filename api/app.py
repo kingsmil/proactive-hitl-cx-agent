@@ -28,15 +28,24 @@ def startup():
 
 @app.get("/")
 def root():
+    sessions = db.get_all_sessions()
+    if sessions:
+        return RedirectResponse(url="/chat/{}".format(sessions[0]["session_id"]))
     return RedirectResponse(url="/chat/{}".format(uuid.uuid4()))
 
 
 @app.get("/chat/{session_id}")
 def chat_page(request: Request, session_id: str):
     session = db.get_or_create_session(session_id)
+    pending_count = len(db.get_all_paused_sessions())
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "session_id": session_id, "session": session},
+        {
+            "request": request,
+            "session_id": session_id,
+            "session": session,
+            "pending_count": pending_count,
+        },
     )
 
 
@@ -65,6 +74,7 @@ async def post_message(
             "session_id": session_id,
             "session": session,
             "history": history,
+            "oob_sessions": db.get_all_sessions(),
         },
     )
 
@@ -139,6 +149,7 @@ async def customer_message(
             "session_id": sid,
             "session": db.get_session(sid),
             "history": history,
+            "oob_sessions": db.get_all_sessions(),
         },
     )
 
