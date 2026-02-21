@@ -44,13 +44,14 @@
     </div>
     {% elif is_running and ai_on %}
     <!-- Processing indicator (post-HITL or tool execution) -->
-    <div class="msg-agent msg-agent-right" style="opacity:0.7;">
-        <div class="msg-agent-body msg-agent-body-right">
-            <div class="msg-agent-bubble pending">
+    <div class="msg-agent msg-agent-right">
+        <div class="msg-agent-body msg-agent-body-right" id="reply-body-{{ session_id }}">
+            <div class="msg-agent-bubble pending" style="opacity:0.7;">
                 <span class="pending-orbs"><span></span><span></span><span></span></span>
                 <span style="font-family:var(--font-body); font-style:italic; font-size:13px;">processing…</span>
             </div>
             <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">✦ weaving</div>
+            <div sse-swap="done" hx-swap="innerHTML" hx-target="#reply-body-{{ session_id }}"></div>
         </div>
         <div class="msg-avatar">✧</div>
     </div>
@@ -72,7 +73,6 @@
 <div id="thought-connector" hx-ext="sse" sse-connect="/agent/thoughts/{{ session_id }}" sse-swap="message"
     hx-target="#thought-log" hx-swap="beforeend scroll:#thought-log:bottom" hx-swap-oob="true">
     <div id="error-toast" sse-swap="error" hx-swap="innerHTML"></div>
-    <div sse-swap="badge" hx-swap="none"></div>
 </div>
 
 

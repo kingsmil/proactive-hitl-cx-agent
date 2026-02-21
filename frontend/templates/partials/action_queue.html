@@ -1,13 +1,13 @@
 {% if pending_sessions %}
-    <span hx-swap-oob="innerHTML:#queue-count">{{ pending_sessions | length }} awaiting</span>
+<span hx-swap-oob="innerHTML:#queue-count">{{ pending_sessions | length }} awaiting</span>
 
-    {% for session in pending_sessions %}
-        {% include "partials/action_card.html" %}
-    {% endfor %}
+{% for session in pending_sessions %}
+{% include "partials/action_card.html" %}
+{% endfor %}
 {% else %}
-    <span hx-swap-oob="innerHTML:#queue-count"></span>
+<span hx-swap-oob="innerHTML:#queue-count">{{ pending_sessions | length }} awaiting</span>
 
-    <div style="
+<div style="
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -18,23 +18,28 @@
         text-align: center;
         padding: 20px;
     ">
-        <!-- Delicate flower SVG -->
-        <svg width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.45;">
-            <!-- Petals -->
-            <ellipse cx="21" cy="10" rx="3" ry="7" fill="currentColor" opacity="0.6"/>
-            <ellipse cx="21" cy="32" rx="3" ry="7" fill="currentColor" opacity="0.6"/>
-            <ellipse cx="10" cy="21" rx="7" ry="3" fill="currentColor" opacity="0.6"/>
-            <ellipse cx="32" cy="21" rx="7" ry="3" fill="currentColor" opacity="0.6"/>
-            <ellipse cx="13.5" cy="13.5" rx="3" ry="7" transform="rotate(-45 13.5 13.5)" fill="currentColor" opacity="0.4"/>
-            <ellipse cx="28.5" cy="28.5" rx="3" ry="7" transform="rotate(-45 28.5 28.5)" fill="currentColor" opacity="0.4"/>
-            <ellipse cx="28.5" cy="13.5" rx="3" ry="7" transform="rotate(45 28.5 13.5)" fill="currentColor" opacity="0.4"/>
-            <ellipse cx="13.5" cy="28.5" rx="3" ry="7" transform="rotate(45 13.5 28.5)" fill="currentColor" opacity="0.4"/>
-            <!-- Centre -->
-            <circle cx="21" cy="21" r="4" fill="currentColor" opacity="0.7"/>
-        </svg>
-        <span style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">All quiet</span>
-        <span style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-ghost); line-height:1.7;">
-            The realm is at peace.<br/>No seals await breaking.
-        </span>
-    </div>
+    <!-- Delicate flower SVG -->
+    <svg width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg"
+        style="opacity:0.45;">
+        <!-- Petals -->
+        <ellipse cx="21" cy="10" rx="3" ry="7" fill="currentColor" opacity="0.6" />
+        <ellipse cx="21" cy="32" rx="3" ry="7" fill="currentColor" opacity="0.6" />
+        <ellipse cx="10" cy="21" rx="7" ry="3" fill="currentColor" opacity="0.6" />
+        <ellipse cx="32" cy="21" rx="7" ry="3" fill="currentColor" opacity="0.6" />
+        <ellipse cx="13.5" cy="13.5" rx="3" ry="7" transform="rotate(-45 13.5 13.5)" fill="currentColor"
+            opacity="0.4" />
+        <ellipse cx="28.5" cy="28.5" rx="3" ry="7" transform="rotate(-45 28.5 28.5)" fill="currentColor"
+            opacity="0.4" />
+        <ellipse cx="28.5" cy="13.5" rx="3" ry="7" transform="rotate(45 28.5 13.5)" fill="currentColor" opacity="0.4" />
+        <ellipse cx="13.5" cy="28.5" rx="3" ry="7" transform="rotate(45 13.5 28.5)" fill="currentColor" opacity="0.4" />
+        <!-- Centre -->
+        <circle cx="21" cy="21" r="4" fill="currentColor" opacity="0.7" />
+    </svg>
+    <span style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">All
+        quiet</span>
+    <span
+        style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-ghost); line-height:1.7;">
+        The realm is at peace.<br />No seals await breaking.
+    </span>
+</div>
 {% endif %}

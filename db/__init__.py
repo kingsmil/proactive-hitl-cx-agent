@@ -4,10 +4,58 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from threading import local
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict
 
 DB_PATH = Path("data/claw.db")
 _local = local()
+
+# ==============================================================================
+# Database Types
+# ==============================================================================
+
+class OrderRow(TypedDict):
+    order_id: str
+    customer_phone: str
+    status: str
+    last_updated: str
+    outreached: int
+
+class SessionRow(TypedDict, total=False):
+    session_id: str
+    status: str
+    channel: str
+    message_history: str
+    ai_enabled: int
+    created_at: str
+    last_message: str
+
+class PendingActionArguments(TypedDict):
+    order_id: str
+    amount: float
+    reason: str
+
+class PendingActionRow(TypedDict):
+    action_id: str
+    session_id: str
+    tool_name: str
+    arguments: str  # JSON encoded string of PendingActionArguments
+    reasoning: str
+    tool_call_id: str
+    created_at: str
+
+class PendingActionUI(TypedDict):
+    tool_name: str
+    arguments: dict
+    reasoning: str
+
+class PausedSessionUI(TypedDict):
+    session_id: str
+    channel: str
+    pending_action: PendingActionUI
+
+class SettingRow(TypedDict):
+    key: str
+    value: str
 
 
 def _conn() -> sqlite3.Connection:
@@ -93,7 +141,7 @@ def set_setting(key: str, value: str) -> None:
 # Session helpers
 # ---------------------------------------------------------------------------
 
-def get_or_create_session(session_id: str, channel: str = "web") -> Dict:
+def get_or_create_session(session_id: str, channel: str = "web") -> SessionRow:
     conn = _conn()
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
@@ -106,7 +154,7 @@ def get_or_create_session(session_id: str, channel: str = "web") -> Dict:
     return get_session(session_id)
 
 
-def get_session(session_id: str) -> Optional[Dict]:
+def get_session(session_id: str) -> Optional[SessionRow]:
     row = _conn().execute(
         "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
     ).fetchone()
@@ -170,7 +218,7 @@ def get_history(session_id: str) -> List[Dict]:
     return json.loads(row["message_history"]) if row else []
 
 
-def get_all_sessions() -> List[Dict]:
+def get_all_sessions() -> List[SessionRow]:
     """Return all sessions ordered newest-first, with last_message computed."""
     rows = _conn().execute(
         "SELECT * FROM sessions ORDER BY created_at DESC"
@@ -239,7 +287,7 @@ def save_pending_action(
     return action_id
 
 
-def get_pending_action(session_id: str) -> Optional[Dict]:
+def get_pending_action(session_id: str) -> Optional[PendingActionRow]:
     row = _conn().execute(
         "SELECT * FROM pending_actions WHERE session_id = ? ORDER BY created_at DESC LIMIT 1",
         (session_id,),
@@ -261,7 +309,7 @@ def delete_pending_action(session_id: str) -> None:
 # HITL queue — enriched list for the UI
 # ---------------------------------------------------------------------------
 
-def get_all_paused_sessions() -> List[Dict]:
+def get_all_paused_sessions() -> List[PausedSessionUI]:
     rows = _conn().execute(
         """
         SELECT s.session_id, s.channel,
@@ -293,7 +341,7 @@ def get_all_paused_sessions() -> List[Dict]:
 # CRM / poller helpers
 # ---------------------------------------------------------------------------
 
-def query_stale_delayed_orders(hours: int = 24) -> List[Dict]:
+def query_stale_delayed_orders(hours: int = 24) -> List[OrderRow]:
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
     rows = _conn().execute(
         "SELECT * FROM orders WHERE status = 'delayed' AND last_updated < ? AND outreached = 0",

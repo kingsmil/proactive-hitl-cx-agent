@@ -285,6 +285,7 @@
     var qc = document.getElementById('queue-count');
     var mb = document.getElementById('mobile-inbox-badge');
     if (qc && mb) {
+        mb.textContent = qc.textContent;
         new MutationObserver(function () { mb.textContent = qc.textContent; })
             .observe(qc, { childList: true, characterData: true, subtree: true });
     }

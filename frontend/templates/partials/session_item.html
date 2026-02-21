@@ -3,6 +3,8 @@
 
 <div class="session-item{% if session.status == 'RUNNING' %} session-running{% endif %}"
     hx-get="/chat/{{ session.session_id }}/pane" hx-target="#commune-content" hx-swap="innerHTML"
+    hx-on::before-request="document.getElementById('commune-content').style.opacity='0.4'"
+    hx-on::after-request="document.getElementById('commune-content').style.opacity='1'"
     title="{{ session.session_id }}">
     <!-- Channel icon + status pulse -->
     <div class="session-item-icon">

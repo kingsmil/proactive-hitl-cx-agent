@@ -1,0 +1,61 @@
+from fastapi import APIRouter, Request, BackgroundTasks, Form
+from fastapi.responses import HTMLResponse
+import db
+from agent import run_agent
+from api.routes.config import templates
+
+router = APIRouter()
+
+@router.get("/actions/pending")
+def actions_pending(request: Request):
+    return templates.TemplateResponse(
+        "partials/action_queue.html",
+        {"request": request, "pending_sessions": db.get_all_paused_sessions()},
+    )
+
+@router.post("/actions/approve/{session_id}")
+async def approve_action(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session_id: str,
+):
+    # Atomic CAS: PAUSED → RUNNING. Only the first caller wins; concurrent
+    # duplicates (double-click, two tabs) get rowcount=0 and are rejected.
+    if not db.try_transition_session(session_id, "PAUSED", "RUNNING"):
+        return _already_handled(session_id)
+    background_tasks.add_task(run_agent, session_id)
+    pending_count = max(0, len(db.get_all_paused_sessions()) - 1)
+    return templates.TemplateResponse(
+        "partials/action_decision.html",
+        {"request": request, "decision": "approved", "session_id": session_id, "pending_count": pending_count},
+    )
+
+@router.post("/actions/reject/{session_id}")
+async def reject_action(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session_id: str,
+    reason: str = Form(default=""),
+):
+    # Same CAS gate — whichever of approve/reject lands first in the DB wins.
+    if not db.try_transition_session(session_id, "PAUSED", "RUNNING"):
+        return _already_handled(session_id)
+    if reason.strip():
+        rejection_msg = "Action rejected by operator. Reason: {}".format(reason.strip())
+    else:
+        rejection_msg = "Action rejected by operator."
+    db.delete_pending_action(session_id)
+    db.append_message(session_id, "tool", rejection_msg)
+    background_tasks.add_task(run_agent, session_id)
+    return templates.TemplateResponse(
+        "partials/action_decision.html",
+        {"request": request, "decision": "rejected", "session_id": session_id, "pending_count": len(db.get_all_paused_sessions())},
+    )
+
+def _already_handled(session_id: str) -> HTMLResponse:
+    """Returned when an approve/reject arrives after the action was already resolved."""
+    return HTMLResponse(
+        '<div class="action-card result-rejected" style="opacity:0.6;">'
+        "⚠ Already handled by another operator — "
+        '<code style="font-size:9px;">{}</code></div>'.format(session_id)
+    )
