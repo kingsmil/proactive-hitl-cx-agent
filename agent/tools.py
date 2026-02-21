@@ -1,4 +1,10 @@
+import json
+import logging
+from pathlib import Path
 import db
+import poller
+
+log = logging.getLogger("tools")
 
 # ---------------------------------------------------------------------------
 # Tools Configuration & Schema
@@ -6,9 +12,7 @@ import db
 
 def check_order_status(order_id: str) -> str:
     """Query the orders table and return a human-readable status string."""
-    row = db._conn().execute(
-        "SELECT status, last_updated FROM orders WHERE order_id = ?", (order_id,)
-    ).fetchone()
+    row = db.get_order(order_id)
     if row is None:
         return "Order {} not found.".format(order_id)
     return "Order {}: status='{}', last updated {}.".format(
@@ -23,8 +27,45 @@ def issue_refund(order_id: str, amount: float, reason: str) -> str:
     )
 
 
-SAFE_TOOLS = {"check_order_status": check_order_status}
-HITL_TOOLS = {"issue_refund": issue_refund}
+def upsert_scheduled_task(
+    task_id: str, cron: str, filters: dict, system_prompt_override: str
+) -> str:
+    """Create or update a polling rule in the scheduledTasks directory."""
+    task_dir = Path("scheduledTasks")
+    task_dir.mkdir(exist_ok=True)
+
+    file_path = task_dir / "{0}.json".format(task_id)
+    task_data = {
+        "task_id": task_id,
+        "enabled": True,
+        "cron": cron,
+        "filters": filters,
+        "system_prompt_override": system_prompt_override,
+    }
+
+    try:
+        with open(file_path, "w") as f:
+            json.dump(task_data, f, indent=2)
+    except PermissionError as e:
+        log.error("No write permission for scheduledTasks/: %s", e)
+        return "Failed to save task: insufficient permissions to write to scheduledTasks/."
+    except OSError as e:
+        log.error("OS error writing task %s: %s", task_id, e)
+        return "Failed to save task due to filesystem error: {0}".format(e)
+
+    poller.reload_scheduler()
+    return "Successfully created/updated task '{0}'. Poller reloaded.".format(task_id)
+
+
+SAFE_TOOLS = {
+    "check_order_status": check_order_status,
+}
+# upsert_scheduled_task has destructive side-effects (fs write + scheduler reload)
+# and must pass through the HITL gate before execution.
+HITL_TOOLS = {
+    "issue_refund": issue_refund,
+    "upsert_scheduled_task": upsert_scheduled_task,
+}
 
 TOOLS = [
     {
@@ -60,6 +101,47 @@ TOOLS = [
                     "reason": {"type": "string"},
                 },
                 "required": ["order_id", "amount", "reason"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "upsert_scheduled_task",
+            "description": (
+                "Create or update an automated CRM polling rule. "
+                "Used when the owner wants to automatically message users "
+                "matching certain conditions."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "A unique, URL-friendly identifier for this task (e.g. 'vip-delays').",
+                    },
+                    "cron": {
+                        "type": "string",
+                        "description": "A standard cron expression (e.g., '0 10 * * *' for 10 AM daily).",
+                    },
+                    "filters": {
+                        "type": "object",
+                        "description": (
+                            "Conditions for matching orders. Supported keys: "
+                            "'status' (string), "
+                            "'min_hours_since_update' (integer), "
+                            "'phone_prefix' (string)."
+                        ),
+                    },
+                    "system_prompt_override": {
+                        "type": "string",
+                        "description": (
+                            "Instructional prompt given when a matching order is found, "
+                            "dictating how to message the user."
+                        ),
+                    },
+                },
+                "required": ["task_id", "cron", "filters", "system_prompt_override"],
             },
         },
     },

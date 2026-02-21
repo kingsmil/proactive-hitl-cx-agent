@@ -8,3 +8,5 @@ __pycache__/
 /venv_new
 venv
 venv_new
+scheduledTasks/*.json
+!scheduledTasks/vip_delay_outreach.json
