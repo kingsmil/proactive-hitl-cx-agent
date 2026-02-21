@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from threading import local
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict
 
 DB_PATH = Path("data/claw.db")
 _local = local()
@@ -13,14 +13,49 @@ _local = local()
 # Database Types
 # ==============================================================================
 
-# For python 3.6+ compatibility we just use standard dicts as hints
-OrderRow = Dict
-SessionRow = Dict
-PendingActionArguments = Dict
-PendingActionRow = Dict
-PendingActionUI = Dict
-PausedSessionUI = Dict
-SettingRow = Dict
+class OrderRow(TypedDict):
+    order_id: str
+    customer_phone: str
+    status: str
+    last_updated: str
+    outreached: int
+
+class SessionRow(TypedDict, total=False):
+    session_id: str
+    status: str
+    channel: str
+    message_history: str
+    ai_enabled: int
+    created_at: str
+    last_message: str
+
+class PendingActionArguments(TypedDict):
+    order_id: str
+    amount: float
+    reason: str
+
+class PendingActionRow(TypedDict):
+    action_id: str
+    session_id: str
+    tool_name: str
+    arguments: str
+    reasoning: str
+    tool_call_id: str
+    created_at: str
+
+class PendingActionUI(TypedDict):
+    tool_name: str
+    arguments: dict
+    reasoning: str
+
+class PausedSessionUI(TypedDict):
+    session_id: str
+    channel: str
+    pending_action: PendingActionUI
+
+class SettingRow(TypedDict):
+    key: str
+    value: str
 
 
 def _conn() -> sqlite3.Connection:
@@ -306,12 +341,47 @@ def get_all_paused_sessions() -> List[PausedSessionUI]:
 # CRM / poller helpers
 # ---------------------------------------------------------------------------
 
+def _build_sql_query_for_filters(filters: dict):
+    """Private helper: build a safe parameterised SQLite query from a filter dict.
+
+    Supported filter keys:
+        status (str)                — orders.status value (default 'delayed')
+        min_hours_since_update (int)— only orders whose last_updated is older
+        phone_prefix (str)          — customer_phone must start with this prefix
+    Always implicitly filters outreached = 0.
+    """
+    conditions = ["status = ?", "outreached = 0"]
+    params = [filters.get("status", "delayed")]
+
+    if "min_hours_since_update" in filters:
+        cutoff = (
+            datetime.now(timezone.utc)
+            - timedelta(hours=filters["min_hours_since_update"])
+        ).isoformat()
+        conditions.append("last_updated < ?")
+        params.append(cutoff)
+
+    if "phone_prefix" in filters:
+        conditions.append("customer_phone LIKE ?")
+        params.append("{0}%".format(filters["phone_prefix"]))
+
+    where_clause = " AND ".join(conditions)
+    return "SELECT * FROM orders WHERE {0}".format(where_clause), params
+
+
 def query_stale_delayed_orders(hours: int = 24) -> List[OrderRow]:
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
     rows = _conn().execute(
         "SELECT * FROM orders WHERE status = 'delayed' AND last_updated < ? AND outreached = 0",
         (cutoff,),
     ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def query_orders_by_filters(filters: dict) -> List[OrderRow]:
+    """Public API for the poller: queries orders using a structured filter dict."""
+    query, params = _build_sql_query_for_filters(filters)
+    rows = _conn().execute(query, params).fetchall()
     return [dict(row) for row in rows]
 
 

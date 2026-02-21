@@ -5,3 +5,5 @@ __pycache__/
 .env
 /.venv/
 /venv/
+# Runtime-managed task files — created by operator/agent, not source-controlled
+scheduledTasks/*.json

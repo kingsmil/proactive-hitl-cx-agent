@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -15,98 +14,99 @@ log = logging.getLogger("poller")
 scheduler = AsyncIOScheduler()
 TASKS_DIR = Path("scheduledTasks")
 
-def _build_sql_query(filters: dict) -> tuple[str, list]:
-    """Dynamically build safe SQLite query from the JSON filters."""
-    conditions = ["status = ?", "outreached = 0"]
-    params = [filters.get("status", "delayed")]
-    
-    # Handle time delay filter
-    if "min_hours_since_update" in filters:
-        hours = filters["min_hours_since_update"]
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
-        conditions.append("last_updated < ?")
-        params.append(cutoff)
-        
-    # Handle VIP phone prefix
-    if "phone_prefix" in filters:
-        conditions.append("customer_phone LIKE ?")
-        params.append(f"{filters['phone_prefix']}%")
-        
-    where_clause = " AND ".join(conditions)
-    query = f"SELECT * FROM orders WHERE {where_clause}"
-    return query, params
 
-
-async def execute_task(task: dict):
-    """Fires when the cron matches. Finds orders and queues sessions."""
+async def execute_task(task: dict) -> None:
+    """Fires when the cron matches. Uses db public API to find orders and queue sessions."""
     if not task.get("enabled", False):
         return
 
-    query, params = _build_sql_query(task.get("filters", {}))
-    
-    conn = db._conn()
-    rows = conn.execute(query, params).fetchall()
-    stale_orders = [dict(r) for r in rows]
+    # B1/B2: use the db public helper — SQL construction stays in the data layer
+    stale_orders = db.query_orders_by_filters(task.get("filters", {}))
 
     if not stale_orders:
         return
 
-    log.info(f"Task '{task.get('task_id')}' found {len(stale_orders)} applicable orders.")
+    log.info(
+        "Task '%s' found %d applicable orders.",
+        task.get("task_id"), len(stale_orders)
+    )
 
     for order in stale_orders:
-        # Prevent re-triggering
+        # Mark before dispatching to prevent duplicate triggers on re-entry
         db.mark_order_outreached(order["order_id"])
-        
-        sid = f"proactive-{task.get('task_id')}-{order['order_id']}"
+
+        sid = "proactive-{task_id}-{order_id}".format(
+            task_id=task.get("task_id"),
+            order_id=order["order_id"],
+        )
         db.get_or_create_session(sid, channel="proactive")
-        
-        synthetic_msg = f"[System Executing Rule: {task.get('task_id')}]\n"
-        synthetic_msg += f"Instructions: {task.get('system_prompt_override')}\n"
-        synthetic_msg += f"Context: Order {order['order_id']} for {order['customer_phone']} is currently '{order['status']}'."
-        
+
+        # N5: single template string — easy to test/modify
+        synthetic_msg = (
+            "[System Executing Rule: {task_id}]\n"
+            "Instructions: {instructions}\n"
+            "Context: Order {order_id} for {phone} is currently '{status}'."
+        ).format(
+            task_id=task.get("task_id", "unknown"),
+            instructions=task.get("system_prompt_override", ""),
+            order_id=order["order_id"],
+            phone=order["customer_phone"],
+            status=order["status"],
+        )
+
         db.append_message(sid, "user", synthetic_msg)
         db.set_session_status(sid, "RUNNING")
-        
-        log.info(f"Enqueuing proactive session {sid}")
-        # Dispatch to orchestrator in the background
+
+        log.info("Enqueuing proactive session %s", sid)
         asyncio.create_task(run_agent(sid))
 
 
-def reload_scheduler():
-    """Reads JSON files from scheduledTasks and repopulates the APScheduler."""
+def reload_scheduler() -> None:
+    """Hot-reloads all APScheduler cron jobs from the scheduledTasks directory."""
     scheduler.remove_all_jobs()
-    
-    if not TASKS_DIR.exists():
-        TASKS_DIR.mkdir(exist_ok=True)
-        
+
+    TASKS_DIR.mkdir(exist_ok=True)
+
     loaded = 0
     for file_path in TASKS_DIR.glob("*.json"):
+        # N3: narrow exception handling — distinguish parse errors from runtime errors
         try:
             with open(file_path, "r") as f:
                 task = json.load(f)
-                
-            if task.get("enabled"):
-                trigger = CronTrigger.from_crontab(task["cron"])
-                scheduler.add_job(
-                    execute_task, 
-                    trigger=trigger, 
-                    args=[task], 
-                    id=task.get("task_id", file_path.stem),
-                    replace_existing=True
-                )
-                loaded += 1
-        except Exception as e:
-            log.error(f"Failed to load task {file_path.name}: {e}")
-            
-    log.info(f"Scheduler reloaded with {loaded} active tasks.")
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            log.error("Corrupt task file %s — skipping: %s", file_path.name, e)
+            continue
+        except OSError as e:
+            log.error("Cannot read task file %s: %s", file_path.name, e)
+            continue
+
+        if not task.get("enabled"):
+            continue
+
+        try:
+            trigger = CronTrigger.from_crontab(task["cron"])
+        except ValueError as e:
+            log.error("Invalid cron expression in %s: %s", file_path.name, e)
+            continue
+
+        scheduler.add_job(
+            execute_task,
+            trigger=trigger,
+            args=[task],
+            id=task.get("task_id", file_path.stem),
+            replace_existing=True,
+        )
+        loaded += 1
+
+    log.info("Scheduler reloaded with %d active tasks.", loaded)
 
 
-def start_poller():
-    """Initializes and starts the polling runtime."""
+def start_poller() -> None:
+    """Initialises and starts the polling runtime."""
     reload_scheduler()
     scheduler.start()
     log.info("CRM Poller started.")
 
 
-def stop_poller():
+def stop_poller() -> None:
     scheduler.shutdown()

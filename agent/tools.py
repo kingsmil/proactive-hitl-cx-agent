@@ -30,36 +30,44 @@ def issue_refund(order_id: str, amount: float, reason: str) -> str:
 
 
 def upsert_scheduled_task(task_id: str, cron: str, filters: dict, system_prompt_override: str) -> str:
-    """Creates a new polling rule."""
+    """Creates or updates a polling rule in the scheduledTasks directory."""
     task_dir = Path("scheduledTasks")
     task_dir.mkdir(exist_ok=True)
-    
-    file_path = task_dir / f"{task_id}.json"
-    
+
+    file_path = task_dir / "{0}.json".format(task_id)
+
     task_data = {
         "task_id": task_id,
         "enabled": True,
         "cron": cron,
         "filters": filters,
-        "system_prompt_override": system_prompt_override
+        "system_prompt_override": system_prompt_override,
     }
-    
+
+    # N3: narrow exceptions — distinguish permission from serialisation errors
     try:
         with open(file_path, "w") as f:
             json.dump(task_data, f, indent=2)
-            
-        poller.reload_scheduler()
-        return f"Successfully created/updated task '{task_id}'. Poller reloaded."
-    except Exception as e:
-        log.error(f"Failed to upsert task {task_id}: {e}")
-        return f"Failed to save task: {e}"
+    except PermissionError as e:
+        log.error("No write permission for scheduledTasks/: %s", e)
+        return "Failed to save task: insufficient permissions to write to scheduledTasks/."
+    except OSError as e:
+        log.error("OS error writing task %s: %s", task_id, e)
+        return "Failed to save task due to filesystem error: {0}".format(e)
+
+    poller.reload_scheduler()
+    return "Successfully created/updated task '{0}'. Poller reloaded.".format(task_id)
 
 
 SAFE_TOOLS = {
     "check_order_status": check_order_status,
-    "upsert_scheduled_task": upsert_scheduled_task
 }
-HITL_TOOLS = {"issue_refund": issue_refund}
+# B4: upsert_scheduled_task has destructive side-effects (fs write + scheduler reload)
+# and must pass through the HITL gate before execution.
+HITL_TOOLS = {
+    "issue_refund": issue_refund,
+    "upsert_scheduled_task": upsert_scheduled_task,
+}
 
 TOOLS = [
     {
