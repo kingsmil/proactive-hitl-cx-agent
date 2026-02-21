@@ -16,6 +16,7 @@ from agent.sse_events import (
     emit_stream_done,
     emit_stream_error
 )
+from agent.whatsapp_client import send_whatsapp_message
 
 log = logging.getLogger("agent")
 
@@ -165,6 +166,13 @@ async def _run_agent_body(session_id: str) -> None:
                         '{} awaiting</span>'
                     ).format(pending_count)
                     await emit_stream_done(session_id, ack, oob_html=oob_badge)
+                    
+                    # Outbound WhatsApp intercept for HITL acknowledgment
+                    sess = db.get_session(session_id)
+                    if sess.get("channel") == "whatsapp":
+                        # The session ID is the phone number for WhatsApp
+                        await send_whatsapp_message(session_id, ack)
+                        
                     return  # halt — resumed via /actions/approve
 
         else:  # finish_reason == "stop"
@@ -172,4 +180,11 @@ async def _run_agent_body(session_id: str) -> None:
             db.append_message(session_id, "assistant", msg["content"])
             await emit_stream_done(session_id, msg["content"])
             db.set_session_status(session_id, "DONE")
+            
+            # Outbound WhatsApp intercept for standard text reply
+            sess = db.get_session(session_id)
+            if sess.get("channel") == "whatsapp":
+                # The session ID is the phone number for WhatsApp
+                await send_whatsapp_message(session_id, msg["content"])
+                
             return
