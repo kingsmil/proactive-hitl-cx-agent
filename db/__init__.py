@@ -111,8 +111,8 @@ def init_db() -> None:
             "ALTER TABLE sessions ADD COLUMN ai_enabled INTEGER NOT NULL DEFAULT 1"
         )
         conn.commit()
-    except Exception:
-        pass  # Column already exists
+    except sqlite3.OperationalError:
+        pass  # Expected: column already exists after migration
     seed_orders()
 
 
@@ -272,7 +272,7 @@ def save_pending_action(
     tool_name: str,
     arguments: dict,
     reasoning: str,
-    tool_call_id: str = None,
+    tool_call_id: Optional[str] = None,
 ) -> str:
     action_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -340,6 +340,49 @@ def get_all_paused_sessions() -> List[PausedSessionUI]:
 # ---------------------------------------------------------------------------
 # CRM / poller helpers
 # ---------------------------------------------------------------------------
+
+def get_order(order_id: str) -> Optional[OrderRow]:
+    """Return a single order row by ID, or None if not found."""
+    row = _conn().execute(
+        "SELECT * FROM orders WHERE order_id = ?", (order_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def _build_sql_query_for_filters(filters: dict):
+    """Build a safe parameterised SQLite query from a filter dict.
+
+    Supported keys:
+        status (str)                — orders.status value (default 'delayed')
+        min_hours_since_update (int)— only orders whose last_updated is older
+        phone_prefix (str)          — customer_phone must start with this prefix
+    Always implicitly filters outreached = 0.
+    """
+    conditions = ["status = ?", "outreached = 0"]
+    params: list = [filters.get("status", "delayed")]
+
+    if "min_hours_since_update" in filters:
+        cutoff = (
+            datetime.now(timezone.utc)
+            - timedelta(hours=filters["min_hours_since_update"])
+        ).isoformat()
+        conditions.append("last_updated < ?")
+        params.append(cutoff)
+
+    if "phone_prefix" in filters:
+        conditions.append("customer_phone LIKE ?")
+        params.append(f"{filters['phone_prefix']}%")
+
+    where_clause = " AND ".join(conditions)
+    return "SELECT * FROM orders WHERE {0}".format(where_clause), params
+
+
+def query_orders_by_filters(filters: dict) -> List[OrderRow]:
+    """Query orders using a structured filter dict (used by the dynamic poller)."""
+    query, params = _build_sql_query_for_filters(filters)
+    rows = _conn().execute(query, params).fetchall()
+    return [dict(row) for row in rows]
+
 
 def query_stale_delayed_orders(hours: int = 24) -> List[OrderRow]:
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
