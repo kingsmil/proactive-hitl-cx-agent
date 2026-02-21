@@ -5,6 +5,8 @@ __pycache__/
 .env
 /.venv/
 /venv/
-# Runtime-managed task files — created by operator/agent, not source-controlled
+/venv_new
+venv
+venv_new
 scheduledTasks/*.json
 !scheduledTasks/vip_delay_outreach.json

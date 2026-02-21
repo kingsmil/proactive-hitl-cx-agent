@@ -28,7 +28,8 @@
             <div style="display:flex; align-items:center; gap:7px;">
                 <div class="live-orb"></div>
                 <span
-                    style="font-family:var(--font-display); font-size:8px; letter-spacing:0.15em; color:var(--sage-dim); text-transform:uppercase;">Attuned</span>
+                    style="font-family:var(--font-display); font-size:9px; letter-spacing:0.15em; color:var(--pb-court); text-transform:uppercase;">In
+                    Play</span>
             </div>
 
             <button class="btn-gear" hx-get="/settings" hx-target="#settings-modal" hx-swap="innerHTML"
@@ -43,11 +44,12 @@
 
             <div class="header-session" style="display:flex; align-items:center; gap:7px;">
                 <span
-                    style="font-family:var(--font-display); font-size:8px; letter-spacing:0.15em; color:var(--text-dim); text-transform:uppercase;">Sigil</span>
+                    style="font-family:var(--font-display); font-size:9px; letter-spacing:0.15em; color:var(--text-dim); text-transform:uppercase;">Match
+                    No.</span>
                 <code id="current-session-sigil" style="
                     font-family: var(--font-mono);
                     font-size: 11px;
-                    color: var(--gold-dim);
+                    color: var(--pb-court);
                     background: var(--surface);
                     border: 1px solid var(--border-mist);
                     padding: 2px 8px;
@@ -68,8 +70,8 @@
         <div class="panel pane active" id="pane-comms" style="display:flex; flex-direction:column; overflow:hidden;">
             <div class="panel-header" style="align-items:center;">
                 <div class="panel-header-title">
-                    <span class="panel-star">✦</span>
-                    <span>Commune</span>
+                    <span class="panel-star" style="color: var(--pb-court)">•</span>
+                    <span>Court Comms</span>
                     <span class="chip chip-outline" style="font-size:7px; margin-left:4px;">
                         {{ session.channel | default("web") | title }}
                     </span>
@@ -102,13 +104,12 @@
                     display:flex; flex-direction:column; align-items:center; justify-content:center;
                     height:100%; gap:10px; color:var(--text-dim); text-align:center; padding:24px;
                 ">
-                    <div style="font-size:26px; opacity:0.25;">✦</div>
+                    <div style="font-size:26px; opacity:0.25; color: var(--pb-accent);">•</div>
                     <span
-                        style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">Select
-                        a conversation</span>
-                    <span
-                        style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-ghost); line-height:1.7;">
-                        Click a session in the Inbox<br />or inject a new customer message.
+                        style="font-family:var(--font-display); font-size:11px; letter-spacing:0.2em; text-transform:uppercase;">Select
+                        a match</span>
+                    <span style="font-family:var(--font-body); font-size:13px; color:var(--text-mid); line-height:1.7;">
+                        Serve to a court in the Inbox<br />or wait for a new rally.
                     </span>
                 </div>
             </div>
@@ -124,10 +125,10 @@
                     gap: 8px;
                     flex-shrink: 0;
                 ">
-                    <div class="weaving-dots"><span>✦</span><span>✦</span><span>✦</span></div>
+                    <div class="weaving-dots"><span>•</span><span>•</span><span>•</span></div>
                     <span
-                        style="font-family:var(--font-body); font-style:italic; font-size:11px; color:var(--lav-dim);">weaving
-                        a response…</span>
+                        style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--pb-accent-dim);">preparing
+                        a return…</span>
                 </div>
 
                 <!-- CS Agent reply form -->
@@ -148,13 +149,13 @@
         <div class="panel pane" id="pane-trace" style="display:flex; flex-direction:column; overflow:hidden;">
             <div class="panel-header">
                 <div class="panel-header-title">
-                    <span class="panel-star">✦</span>
-                    <span>Scrying Glass</span>
+                    <span class="panel-star" style="color: var(--pb-accent)">•</span>
+                    <span>Replay Analysis</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
                     <div class="live-orb"></div>
                     <span
-                        style="font-family:var(--font-display); font-size:8px; letter-spacing:0.12em; color:var(--sage-dim); text-transform:uppercase;">Live</span>
+                        style="font-family:var(--font-display); font-size:9px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase;">Live</span>
                 </div>
             </div>
 
@@ -182,7 +183,7 @@
                     margin-top: 28px;
                     line-height: 1.8;
                 ">
-                    The glass is still.<br />Awaiting the thread…
+                    The court is clear.<br />Awaiting a serve…
                 </div>
             </div>
         </div>
@@ -210,7 +211,7 @@
                             <polyline points="5.5,8 7.5,10 10.5,6" stroke="currentColor" stroke-width="1.3" fill="none"
                                 stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
-                        Seals
+                        Scores
                         <span id="queue-count" class="pane-tab-badge">{% if pending_count %}{{ pending_count }}
                             awaiting{% endif %}</span>
                     </button>
@@ -231,7 +232,7 @@
                 <path d="M2 3h12v8H9l-3 2.5V11H2V3z" stroke="currentColor" stroke-width="1.2" fill="none"
                     stroke-linejoin="round" />
             </svg>
-            Commune
+            Comms
         </button>
         <button class="tab-btn" id="btn-trace" role="tab" aria-selected="false" onclick="switchTab('trace')">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -242,7 +243,7 @@
                 <line x1="1" y1="8" x2="3" y2="8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
                 <line x1="13" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
             </svg>
-            Scry
+            Replay
         </button>
         <button class="tab-btn" id="btn-right" role="tab" aria-selected="false" onclick="switchTab('right')">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
