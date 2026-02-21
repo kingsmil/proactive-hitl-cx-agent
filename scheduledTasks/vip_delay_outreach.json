@@ -1,0 +1,11 @@
+{
+    "task_id": "vip_delay_outreach",
+    "enabled": false,
+    "cron": "0 10 * * *",
+    "filters": {
+        "status": "delayed",
+        "min_hours_since_update": 24,
+        "phone_prefix": "+1-555"
+    },
+    "system_prompt_override": "You are a VIP customer success agent. The customer's order has been significantly delayed. Reach out empathetically, provide a clear explanation, and proactively offer a 10% discount or refund as compensation. Keep the tone warm, professional, and concise."
+}

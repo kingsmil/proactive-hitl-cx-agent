@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from threading import local
-from typing import Dict, List, Optional, TypedDict
+from typing import Dict, List, Optional
 
 DB_PATH = Path("data/claw.db")
 _local = local()
@@ -13,49 +13,14 @@ _local = local()
 # Database Types
 # ==============================================================================
 
-class OrderRow(TypedDict):
-    order_id: str
-    customer_phone: str
-    status: str
-    last_updated: str
-    outreached: int
-
-class SessionRow(TypedDict, total=False):
-    session_id: str
-    status: str
-    channel: str
-    message_history: str
-    ai_enabled: int
-    created_at: str
-    last_message: str
-
-class PendingActionArguments(TypedDict):
-    order_id: str
-    amount: float
-    reason: str
-
-class PendingActionRow(TypedDict):
-    action_id: str
-    session_id: str
-    tool_name: str
-    arguments: str  # JSON encoded string of PendingActionArguments
-    reasoning: str
-    tool_call_id: str
-    created_at: str
-
-class PendingActionUI(TypedDict):
-    tool_name: str
-    arguments: dict
-    reasoning: str
-
-class PausedSessionUI(TypedDict):
-    session_id: str
-    channel: str
-    pending_action: PendingActionUI
-
-class SettingRow(TypedDict):
-    key: str
-    value: str
+# For python 3.6+ compatibility we just use standard dicts as hints
+OrderRow = Dict
+SessionRow = Dict
+PendingActionArguments = Dict
+PendingActionRow = Dict
+PendingActionUI = Dict
+PausedSessionUI = Dict
+SettingRow = Dict
 
 
 def _conn() -> sqlite3.Connection:
