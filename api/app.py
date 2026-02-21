@@ -1,19 +1,26 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 import db
-from api.routes import chat, inbox, actions, sse, settings
+from api.routes import chat, inbox, actions, sse, settings, whatsapp
+from poller import start_poller, stop_poller
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db.init_db()
+    start_poller()
+    yield
+    stop_poller()
+
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.on_event("startup")
-def startup():
-    db.init_db()
-
-# Register modular routes
 app.include_router(chat.router)
 app.include_router(inbox.router)
 app.include_router(actions.router)
 app.include_router(sse.router)
 app.include_router(settings.router)
+app.include_router(whatsapp.router)

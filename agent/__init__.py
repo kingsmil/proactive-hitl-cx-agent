@@ -9,6 +9,7 @@ from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS
 from agent.sse_events import (
     thought_queues,
     stream_queues,
+    _ensure_stream_queue,
     emit_thought,
     emit_llm_thought,
     emit_error,
@@ -16,6 +17,7 @@ from agent.sse_events import (
     emit_stream_done,
     emit_stream_error
 )
+from agent.whatsapp_client import send_whatsapp_message
 
 log = logging.getLogger("agent")
 
@@ -24,10 +26,6 @@ log = logging.getLogger("agent")
 # ---------------------------------------------------------------------------
 
 _agent_locks = {}   # dict[str, asyncio.Lock] — one lock per session
-
-def _ensure_stream_queue(session_id):
-    if session_id not in stream_queues:
-        stream_queues[session_id] = asyncio.Queue()
 
 def _push_streamed_token_to_browser(session_id: str, token: str, loop: asyncio.AbstractEventLoop = None):
     """HTML-escape a token and push it into the SSE stream queue."""
@@ -38,6 +36,13 @@ def _push_streamed_token_to_browser(session_id: str, token: str, loop: asyncio.A
         )
     else:
         stream_queues[session_id].put_nowait(token_html)
+
+
+async def _dispatch_reply(session_id: str, content: str) -> None:
+    """Deliver a completed agent reply to any non-SSE channel sinks (e.g. WhatsApp)."""
+    sess = db.get_session(session_id)
+    if sess and sess.get("channel") == "whatsapp":
+        await send_whatsapp_message(session_id, content)
 
 # ---------------------------------------------------------------------------
 # Orchestrator loop
@@ -165,11 +170,13 @@ async def _run_agent_body(session_id: str) -> None:
                         '{} awaiting</span>'
                     ).format(pending_count)
                     await emit_stream_done(session_id, ack, oob_html=oob_badge)
+                    await _dispatch_reply(session_id, ack)
                     return  # halt — resumed via /actions/approve
 
         else:  # finish_reason == "stop"
             await emit_thought(session_id, "reason", "Composing reply…")
             db.append_message(session_id, "assistant", msg["content"])
             await emit_stream_done(session_id, msg["content"])
+            await _dispatch_reply(session_id, msg["content"])
             db.set_session_status(session_id, "DONE")
             return
