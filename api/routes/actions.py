@@ -25,10 +25,12 @@ async def approve_action(
         return _already_handled(session_id)
     background_tasks.add_task(run_agent, session_id)
     pending_count = max(0, len(db.get_all_paused_sessions()) - 1)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "partials/action_decision.html",
         {"request": request, "decision": "approved", "session_id": session_id, "pending_count": pending_count},
     )
+    response.headers["HX-Trigger"] = f"reload-chat-{session_id}"
+    return response
 
 @router.post("/actions/reject/{session_id}")
 async def reject_action(
@@ -47,10 +49,12 @@ async def reject_action(
     db.delete_pending_action(session_id)
     db.append_message(session_id, "tool", rejection_msg)
     background_tasks.add_task(run_agent, session_id)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "partials/action_decision.html",
         {"request": request, "decision": "rejected", "session_id": session_id, "pending_count": len(db.get_all_paused_sessions())},
     )
+    response.headers["HX-Trigger"] = f"reload-chat-{session_id}"
+    return response
 
 def _already_handled(session_id: str) -> HTMLResponse:
     """Returned when an approve/reject arrives after the action was already resolved."""

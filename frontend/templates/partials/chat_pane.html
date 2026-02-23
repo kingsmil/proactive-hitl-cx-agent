@@ -28,7 +28,9 @@
 {% endif %}
 
 <!-- SSE stream — always connected for this session -->
-<div id="chat-stream-{{ session_id }}" hx-ext="sse" sse-connect="/chat/stream/{{ session_id }}">
+<div id="chat-stream-{{ session_id }}" hx-ext="sse" sse-connect="/chat/stream/{{ session_id }}"
+    hx-get="/chat/{{ session_id }}/pane" hx-trigger="reload-chat-{{ session_id }} from:body"
+    hx-target="#commune-content">
     {% if is_running and history and history[-1].role == "user" and ai_on %}
     <!-- Pending AI bubble — streams tokens via SSE -->
     <div class="msg-agent msg-agent-right">
