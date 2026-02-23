@@ -17,7 +17,7 @@ from agent.sse_events import (
     emit_stream_done,
     emit_stream_error
 )
-from agent.whatsapp_client import send_whatsapp_message
+from agent.telegram_client import send_telegram_message
 
 log = logging.getLogger("agent")
 
@@ -39,10 +39,10 @@ def _push_streamed_token_to_browser(session_id: str, token: str, loop: asyncio.A
 
 
 async def _dispatch_reply(session_id: str, content: str) -> None:
-    """Deliver a completed agent reply to any non-SSE channel sinks (e.g. WhatsApp)."""
+    """Deliver a completed agent reply to any non-SSE channel sinks (e.g. Telegram)."""
     sess = db.get_session(session_id)
-    if sess and sess.get("channel") == "whatsapp":
-        await send_whatsapp_message(session_id, content)
+    if sess and sess.get("channel") == "telegram":
+        await send_telegram_message(session_id, content)
 
 # ---------------------------------------------------------------------------
 # Orchestrator loop
