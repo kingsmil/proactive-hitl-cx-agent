@@ -1,4 +1,6 @@
 import logging
+import os
+import secrets
 from typing import Any, Dict
 
 from fastapi import APIRouter, BackgroundTasks, Request
@@ -10,6 +12,19 @@ from agent import run_agent
 router = APIRouter()
 log = logging.getLogger("telegram_webhook")
 
+_WEBHOOK_SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token"
+
+
+def _verify_secret(request: Request) -> bool:
+    """Return False if a webhook secret is configured and the request header does not match."""
+    expected = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+    if not expected:
+        # Secret not configured — skip enforcement (dev mode).
+        return True
+    received = request.headers.get(_WEBHOOK_SECRET_HEADER, "")
+    # Constant-time comparison prevents timing oracle attacks.
+    return secrets.compare_digest(expected, received)
+
 
 @router.post("/webhook/telegram")
 async def telegram_webhook(
@@ -18,9 +33,14 @@ async def telegram_webhook(
 ) -> JSONResponse:
     """Handle inbound Telegram updates.
 
-    Telegram sends updates as JSON. We care about 'message' updates containing 'text'.
+    Validates the X-Telegram-Bot-Api-Secret-Token header before processing.
+    Telegram sends updates as JSON; we handle 'message' updates containing 'text'.
     The session ID is constructed as 'telegram:{chat_id}'.
     """
+    if not _verify_secret(request):
+        log.warning("Rejected Telegram webhook — invalid secret token")
+        return JSONResponse({"status": "forbidden"}, status_code=403)
+
     data: Dict[str, Any] = await request.json()
     log.info("Received Telegram update: %s", data)
 
