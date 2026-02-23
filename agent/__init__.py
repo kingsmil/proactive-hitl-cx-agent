@@ -39,7 +39,7 @@ def _push_streamed_token_to_browser(session_id: str, token: str, loop: asyncio.A
 
 
 async def _dispatch_reply(session_id: str, content: str) -> None:
-    """Deliver a completed agent reply to any non-SSE channel sinks (e.g. WhatsApp)."""
+    """Deliver a completed agent reply to any non-SSE channel sinks (e.g. Telegram)."""
     sess = db.get_session(session_id)
     if sess and sess.get("channel") == "telegram":
         await send_telegram_message(session_id, content)

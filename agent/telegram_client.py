@@ -27,8 +27,14 @@ async def send_telegram_message(to_chat_id: str, text: str) -> bool:
                 response.raise_for_status()
                 log.info("Sent Telegram message to %s", chat_id)
                 return True
-            except Exception as e:
-                log.error("Failed to send Telegram message to %s: %s", chat_id, e)
+            except httpx.HTTPStatusError as e:
+                log.error(
+                    "Telegram API returned HTTP %s for chat %s: %s",
+                    e.response.status_code, chat_id, e,
+                )
+                return False
+            except httpx.RequestError as e:
+                log.error("Network error sending Telegram message to %s: %s", chat_id, e)
                 return False
     else:
         log.info("MOCK: Telegram message to %s: %s", chat_id, text)
