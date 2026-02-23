@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 import db
-from api.routes import chat, inbox, actions, sse, settings, whatsapp
+from api.routes import chat, inbox, actions, sse, settings, telegram
 from poller import start_poller, stop_poller
 
 
@@ -23,4 +23,4 @@ app.include_router(inbox.router)
 app.include_router(actions.router)
 app.include_router(sse.router)
 app.include_router(settings.router)
-app.include_router(whatsapp.router)
+app.include_router(telegram.router)
