@@ -67,6 +67,7 @@ async def _run_agent_locked(session_id: str) -> None:
     try:
         await _run_agent_body(session_id)
     except Exception as exc:
+        log.error("Agent loop crashed for session %s: %s", session_id, exc, exc_info=True)
         await emit_error(session_id, str(exc))
         await emit_stream_error(session_id)
         db.set_session_status(session_id, "DONE")

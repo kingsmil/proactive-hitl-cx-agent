@@ -415,6 +415,20 @@ The project has no `requires-python` constraint. Add one to prevent incompatible
 requires-python = ">=3.11"
 ```
 
+### 6.6 Application Execution
+
+The application must **always** be started via `main.py`, not by pointing Uvicorn directly at the FastAPI app instance:
+
+```bash
+# ❌ INCORRECT (bypasses logging configuration)
+uvicorn api.app:app --reload
+
+# ✅ CORRECT
+uvicorn main:app --reload
+```
+
+`main.py` is the definitive entry point that configures standard library loggers (like the `httpx` and `agent` loggers). Bypassing it makes debugging impossible because background agent thoughts and external API calls will not be printed to the terminal.
+
 ---
 
 ## 7. Testing Standards

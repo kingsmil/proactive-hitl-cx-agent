@@ -2,6 +2,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import db
 from api.routes import chat, inbox, actions, sse, settings, telegram
 from poller import start_poller, stop_poller
