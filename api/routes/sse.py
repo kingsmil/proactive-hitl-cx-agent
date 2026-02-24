@@ -1,14 +1,16 @@
 import asyncio
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
-from agent.sse_events import thought_queues, stream_queues
+from agent.sse_events import (
+    thought_queues, stream_queues,
+    _ensure_thought_queue, _ensure_stream_queue,
+)
 
 router = APIRouter()
 
 @router.get("/agent/thoughts/{session_id}")
 async def thought_stream(request: Request, session_id: str):
-    if session_id not in thought_queues:
-        thought_queues[session_id] = asyncio.Queue()
+    _ensure_thought_queue(session_id)
     queue = thought_queues[session_id]
 
     async def generator():
@@ -29,8 +31,7 @@ async def thought_stream(request: Request, session_id: str):
 
 @router.get("/chat/stream/{session_id}")
 async def chat_stream(request: Request, session_id: str):
-    if session_id not in stream_queues:
-        stream_queues[session_id] = asyncio.Queue()
+    _ensure_stream_queue(session_id)
     queue = stream_queues[session_id]
 
     async def generator():

@@ -29,7 +29,9 @@ Guidelines:
 - Always call check_order_status before making any decisions about an order.
 - Call issue_refund only when the customer is clearly owed a refund and you have confirmed the order status.
 - Be brief and empathetic. One short paragraph per reply.
-- Never invent order details — only use what the tools return."""
+- Never invent order details — only use what the tools return.
+- When you have order details, reference the customer by name and mention the product they ordered.
+- If the user hasn't asked about a specific order, use list_orders to see what orders are available and suggest a few the user might want to ask about."""
 
 # ---------------------------------------------------------------------------
 # LLM helpers — shared config, request building, streaming

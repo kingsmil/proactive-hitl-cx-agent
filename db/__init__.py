@@ -4,7 +4,13 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from threading import local
-from typing import Dict, List, Optional, TypedDict
+from typing import Dict, List, Literal, Optional, TypedDict
+
+# Session status constants — use these instead of bare strings
+RUNNING: Literal["RUNNING"] = "RUNNING"
+PAUSED:  Literal["PAUSED"]  = "PAUSED"
+DONE:    Literal["DONE"]    = "DONE"
+SessionStatus = Literal["RUNNING", "PAUSED", "DONE"]
 
 DB_PATH = Path("data/claw.db")
 _local = local()
@@ -15,7 +21,11 @@ _local = local()
 
 class OrderRow(TypedDict):
     order_id: str
+    customer_name: str
     customer_phone: str
+    product_name: str
+    item_count: int
+    total_amount: float
     status: str
     last_updated: str
     outreached: int
@@ -74,7 +84,11 @@ def init_db() -> None:
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS orders (
             order_id       TEXT PRIMARY KEY,
+            customer_name  TEXT NOT NULL DEFAULT '',
             customer_phone TEXT NOT NULL,
+            product_name   TEXT NOT NULL DEFAULT '',
+            item_count     INTEGER NOT NULL DEFAULT 1,
+            total_amount   REAL NOT NULL DEFAULT 0.0,
             status         TEXT NOT NULL DEFAULT 'processing',
             last_updated   TEXT NOT NULL,
             outreached     INTEGER NOT NULL DEFAULT 0
@@ -113,6 +127,20 @@ def init_db() -> None:
         conn.commit()
     except sqlite3.OperationalError:
         pass  # Expected: column already exists after migration
+    # Migration: add new order columns for existing databases
+    for col_def in [
+        ("customer_name", "TEXT NOT NULL DEFAULT ''"),
+        ("product_name", "TEXT NOT NULL DEFAULT ''"),
+        ("item_count", "INTEGER NOT NULL DEFAULT 1"),
+        ("total_amount", "REAL NOT NULL DEFAULT 0.0"),
+    ]:
+        try:
+            conn.execute(
+                "ALTER TABLE orders ADD COLUMN {} {}".format(col_def[0], col_def[1])
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # Expected: column already exists after migration
     seed_orders()
 
 
@@ -403,19 +431,32 @@ def mark_order_outreached(order_id: str) -> None:
 # Seed data
 # ---------------------------------------------------------------------------
 
+def get_all_orders() -> List[OrderRow]:
+    """Return all orders, newest first."""
+    rows = _conn().execute(
+        "SELECT * FROM orders ORDER BY last_updated DESC"
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def seed_orders() -> None:
     now = datetime.now(timezone.utc)
+    # (order_id, customer_name, customer_phone, product_name, item_count, total_amount, status, last_updated)
     orders = [
-        ("ORD-001", "+1-555-0101", "processing", now.isoformat()),
-        ("ORD-002", "+1-555-0102", "delayed",    (now - timedelta(hours=48)).isoformat()),
-        ("ORD-003", "+1-555-0103", "delivered",  now.isoformat()),
-        ("ORD-004", "+1-555-0104", "delayed",    (now - timedelta(hours=72)).isoformat()),
-        ("ORD-005", "+1-555-0105", "processing", now.isoformat()),
+        ("ORD-001", "Alice Johnson",  "+1-555-0101", "Wireless Headphones",      1,  79.99, "processing", now.isoformat()),
+        ("ORD-002", "Bob Martinez",   "+1-555-0102", "Running Shoes (Size 10)",   1, 129.95, "delayed",    (now - timedelta(hours=48)).isoformat()),
+        ("ORD-003", "Carol Chen",     "+1-555-0103", "Organic Coffee Beans 2lb",  3,  44.97, "delivered",  now.isoformat()),
+        ("ORD-004", "David Kim",      "+1-555-0104", "Laptop Stand (Adjustable)", 1,  54.99, "delayed",    (now - timedelta(hours=72)).isoformat()),
+        ("ORD-005", "Eva Rossi",      "+1-555-0105", "Yoga Mat & Blocks Set",     2,  67.50, "processing", now.isoformat()),
+        ("ORD-006", "Frank Okafor",   "+1-555-0106", "Bluetooth Speaker",         1,  45.00, "shipped",    (now - timedelta(hours=12)).isoformat()),
+        ("ORD-007", "Grace Tanaka",   "+1-555-0107", "Stainless Steel Water Bottle", 4, 95.80, "delayed", (now - timedelta(hours=36)).isoformat()),
+        ("ORD-008", "Henry Dubois",   "+1-555-0108", "USB-C Hub Adapter",         1,  34.99, "cancelled",  (now - timedelta(hours=6)).isoformat()),
     ]
     conn = _conn()
     conn.executemany(
-        "INSERT OR IGNORE INTO orders (order_id, customer_phone, status, last_updated) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO orders "
+        "(order_id, customer_name, customer_phone, product_name, item_count, total_amount, status, last_updated) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         orders,
     )
     conn.commit()

@@ -51,10 +51,10 @@ class TestInitDb(DBTestCase):
         self.assertIn("pending_actions", tables)
         self.assertIn("orders", tables)
 
-    def test_seed_inserts_five_orders(self):
+    def test_seed_inserts_eight_orders(self):
         conn = db._conn()
         count = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
-        self.assertEqual(count, 5)
+        self.assertEqual(count, 8)
 
     def test_seed_expected_order_ids(self):
         conn = db._conn()
@@ -62,21 +62,25 @@ class TestInitDb(DBTestCase):
             row[0]
             for row in conn.execute("SELECT order_id FROM orders").fetchall()
         }
-        self.assertEqual(ids, {"ORD-001", "ORD-002", "ORD-003", "ORD-004", "ORD-005"})
+        self.assertEqual(ids, {
+            "ORD-001", "ORD-002", "ORD-003", "ORD-004",
+            "ORD-005", "ORD-006", "ORD-007", "ORD-008",
+        })
 
     def test_seed_is_idempotent(self):
         """Calling init_db (and thus seed_orders) a second time must not duplicate rows."""
         db.init_db()
         conn = db._conn()
         count = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
-        self.assertEqual(count, 5)
+        self.assertEqual(count, 8)
 
     def test_delayed_orders_are_old_enough(self):
-        """ORD-002 and ORD-004 must be stamped >24 h ago so the poller picks them up."""
+        """ORD-002, ORD-004, and ORD-007 must be stamped >24 h ago so the poller picks them up."""
         stale = db.query_stale_delayed_orders(hours=24)
         stale_ids = {o["order_id"] for o in stale}
         self.assertIn("ORD-002", stale_ids)
         self.assertIn("ORD-004", stale_ids)
+        self.assertIn("ORD-007", stale_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +325,7 @@ class TestQueryStaleDelayedOrders(DBTestCase):
 
     def test_returns_delayed_orders_older_than_threshold(self):
         stale = db.query_stale_delayed_orders(hours=24)
-        self.assertEqual(len(stale), 2)
+        self.assertEqual(len(stale), 3)
 
     def test_excludes_non_delayed_orders(self):
         stale = db.query_stale_delayed_orders(hours=24)
@@ -333,8 +337,9 @@ class TestQueryStaleDelayedOrders(DBTestCase):
         order_id = stale[0]["order_id"]
         db.mark_order_outreached(order_id)
         stale_after = db.query_stale_delayed_orders(hours=24)
-        self.assertEqual(len(stale_after), 1)
-        self.assertNotEqual(stale_after[0]["order_id"], order_id)
+        self.assertEqual(len(stale_after), 2)
+        outreached_ids = {o["order_id"] for o in stale_after}
+        self.assertNotIn(order_id, outreached_ids)
 
     def test_stricter_threshold_returns_only_oldest(self):
         """With a 60-hour threshold only ORD-004 (72 h old) should match."""
@@ -366,6 +371,7 @@ class TestMarkOrderOutreached(DBTestCase):
     def test_marked_order_absent_from_stale_query(self):
         db.mark_order_outreached("ORD-002")
         db.mark_order_outreached("ORD-004")
+        db.mark_order_outreached("ORD-007")
         stale = db.query_stale_delayed_orders(hours=24)
         self.assertEqual(stale, [])
 

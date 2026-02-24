@@ -60,7 +60,7 @@ async def telegram_webhook(
     # Ensure the session exists and record the message
     session = db.get_or_create_session(session_id, channel="telegram")
     db.append_message(session_id, "user", text)
-    db.set_session_status(session_id, "RUNNING")
+    db.set_session_status(session_id, db.RUNNING)
 
     # Trigger the agent if AI is enabled for this session
     if session.get("ai_enabled", 1):

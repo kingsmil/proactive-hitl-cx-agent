@@ -44,7 +44,7 @@ async def execute_task(task: dict) -> None:
         )
 
         db.append_message(sid, "user", synthetic_msg)
-        db.set_session_status(sid, "RUNNING")
+        db.set_session_status(sid, db.RUNNING)
 
         log.info("Enqueuing proactive session %s", sid)
         asyncio.create_task(run_agent(sid))

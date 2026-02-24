@@ -38,7 +38,7 @@ async def post_message(
     """Legacy alias — routes to customer_message logic."""
     session = db.get_or_create_session(session_id)
     db.append_message(session_id, "user", message)
-    db.set_session_status(session_id, "RUNNING")
+    db.set_session_status(session_id, db.RUNNING)
     if session.get("ai_enabled", 1):
         background_tasks.add_task(run_agent, session_id)
     history = db.get_history(session_id)
@@ -78,7 +78,7 @@ async def customer_message(
     sid = session_id.strip() or str(uuid.uuid4())
     session = db.get_or_create_session(sid, channel)
     db.append_message(sid, "user", message)
-    db.set_session_status(sid, "RUNNING")
+    db.set_session_status(sid, db.RUNNING)
     if session.get("ai_enabled", 1):
         background_tasks.add_task(run_agent, sid)
     history = db.get_history(sid)

@@ -1,6 +1,5 @@
 import os
 from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse
 import db
 from agent.llm_client import DEFAULT_MODEL
 from api.routes.config import templates
@@ -29,6 +28,6 @@ async def save_settings(
         db.set_setting("model", model.strip())
     if openrouter_api_key.strip():
         db.set_setting("openrouter_api_key", openrouter_api_key.strip())
-    return HTMLResponse(
-        '<span class="chip chip-sage" style="animation:driftIn .3s both;">Sealed ✦</span>'
+    return templates.TemplateResponse(
+        "partials/settings_saved.html", {"request": request}
     )

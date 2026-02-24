@@ -4,6 +4,19 @@ from pathlib import Path
 import db
 import poller
 
+
+def sanitize_json_fragment(raw: str) -> str:
+    """Trim trailing garbage after the last '}' in a JSON string.
+
+    Some LLM providers (notably OpenRouter-proxied models) occasionally append
+    trailing whitespace or partial tokens after the closing brace of a tool-call
+    arguments object. This strips everything after the last valid '}'.
+    """
+    pos = raw.rfind("}")
+    if pos != -1:
+        return raw[:pos + 1]
+    return raw
+
 log = logging.getLogger("tools")
 
 # ---------------------------------------------------------------------------
@@ -15,9 +28,30 @@ def check_order_status(order_id: str) -> str:
     row = db.get_order(order_id)
     if row is None:
         return "Order {} not found.".format(order_id)
-    return "Order {}: status='{}', last updated {}.".format(
-        order_id, row["status"], row["last_updated"]
-    )
+    return (
+        "Order {order_id}: customer='{customer_name}', "
+        "product='{product_name}' x{item_count}, "
+        "total=${total_amount:.2f}, status='{status}', "
+        "last updated {last_updated}."
+    ).format(**row)
+
+
+def list_orders(status: str = "", customer_name: str = "") -> str:
+    """Query orders with optional filters and return a summary for the agent to suggest."""
+    all_orders = db.get_all_orders()
+    if status:
+        all_orders = [o for o in all_orders if o["status"].lower() == status.lower()]
+    if customer_name:
+        all_orders = [o for o in all_orders if customer_name.lower() in o["customer_name"].lower()]
+    if not all_orders:
+        return "No orders found matching the given filters."
+    lines = []
+    for o in all_orders:
+        lines.append(
+            "- {order_id}: {customer_name} — '{product_name}' x{item_count}, "
+            "${total_amount:.2f}, status={status}".format(**o)
+        )
+    return "Found {} order(s):\n{}".format(len(all_orders), "\n".join(lines))
 
 
 def issue_refund(order_id: str, amount: float, reason: str) -> str:
@@ -57,8 +91,31 @@ def upsert_scheduled_task(
     return "Successfully created/updated task '{0}'. Poller reloaded.".format(task_id)
 
 
+TOOL_ACK_MESSAGES = {
+    "issue_refund": (
+        'We acknowledge your refund request for order {order_id} and your '
+        'reason for it ("{reason}"). We will escalate this to an agent '
+        'to help approve.'
+    ),
+}
+
+DEFAULT_ACK_MESSAGE = (
+    "We acknowledge your request and your reason for it. "
+    "We will escalate this to an agent to help approve."
+)
+
+
+def get_ack_message(tool_name: str, args: dict) -> str:
+    """Return the HITL acknowledgement message for a given tool call."""
+    template = TOOL_ACK_MESSAGES.get(tool_name)
+    if template:
+        return template.format(**args)
+    return DEFAULT_ACK_MESSAGE
+
+
 SAFE_TOOLS = {
     "check_order_status": check_order_status,
+    "list_orders": list_orders,
 }
 # upsert_scheduled_task has destructive side-effects (fs write + scheduler reload)
 # and must pass through the HITL gate before execution.
@@ -71,8 +128,33 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "list_orders",
+            "description": (
+                "List all orders in the system with optional filters. "
+                "Use this to see what orders exist and suggest them to the user. "
+                "Call with no arguments to list all orders, or filter by status or customer name."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by order status (e.g. 'processing', 'delayed', 'delivered', 'shipped', 'cancelled'). Leave empty for all.",
+                    },
+                    "customer_name": {
+                        "type": "string",
+                        "description": "Filter by customer name (partial match). Leave empty for all.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "check_order_status",
-            "description": "Look up the current status of a customer order.",
+            "description": "Look up the current status of a customer order. Returns customer name, product, quantity, total amount, status, and last update time.",
             "parameters": {
                 "type": "object",
                 "properties": {

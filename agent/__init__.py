@@ -5,10 +5,11 @@ from markupsafe import escape
 
 import db
 from agent.llm_client import call_llm, call_llm_streaming
-from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS
+from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS, get_ack_message, sanitize_json_fragment
 from agent.sse_events import (
     thought_queues,
     stream_queues,
+    _ensure_thought_queue,
     _ensure_stream_queue,
     emit_thought,
     emit_llm_thought,
@@ -60,9 +61,7 @@ async def run_agent(session_id: str) -> None:
 
 
 async def _run_agent_locked(session_id: str) -> None:
-    if session_id not in thought_queues:
-        thought_queues[session_id] = asyncio.Queue()
-
+    _ensure_thought_queue(session_id)
     _ensure_stream_queue(session_id)
     try:
         await _run_agent_body(session_id)
@@ -70,7 +69,7 @@ async def _run_agent_locked(session_id: str) -> None:
         log.error("Agent loop crashed for session %s: %s", session_id, exc, exc_info=True)
         await emit_error(session_id, str(exc))
         await emit_stream_error(session_id)
-        db.set_session_status(session_id, "DONE")
+        db.set_session_status(session_id, db.DONE)
 
 
 async def _run_agent_body(session_id: str) -> None:
@@ -90,7 +89,7 @@ async def _run_agent_body(session_id: str) -> None:
         db.delete_pending_action(session_id)
 
     # ── Phase B: main loop ───────────────────────────────────────────────────
-    while db.get_session(session_id)["status"] == "RUNNING":
+    while db.get_session(session_id)["status"] == db.RUNNING:
         history = db.get_history(session_id)
         await emit_thought(session_id, "supervisor", "Evaluating conversation…")
 
@@ -123,10 +122,7 @@ async def _run_agent_body(session_id: str) -> None:
 
             for tc in msg["tool_calls"]:
                 name = tc["function"]["name"]
-                args_raw = tc["function"]["arguments"]
-                # Sanitize common LLM artifacts that break pure JSON parsing
-                if args_raw.rfind("}") != -1:
-                    args_raw = args_raw[:args_raw.rfind("}") + 1]
+                args_raw = sanitize_json_fragment(tc["function"]["arguments"])
                 args = json.loads(args_raw)
 
                 if name in SAFE_TOOLS:
@@ -148,21 +144,8 @@ async def _run_agent_body(session_id: str) -> None:
                         reasoning=msg.get("content") or "",
                         tool_call_id=tc["id"],
                     )
-                    db.set_session_status(session_id, "PAUSED")
-                    if name == "issue_refund":
-                        ack = (
-                            "We acknowledge your refund request for order {order_id} and your "
-                            "reason for it (\"{reason}\"). We will escalate this to an agent "
-                            "to help approve."
-                        ).format(
-                            order_id=args.get("order_id", ""),
-                            reason=args.get("reason", ""),
-                        )
-                    else:
-                        ack = (
-                            "We acknowledge your request and your reason for it. "
-                            "We will escalate this to an agent to help approve."
-                        )
+                    db.set_session_status(session_id, db.PAUSED)
+                    ack = get_ack_message(name, args)
                     db.append_message(session_id, "assistant", ack)
                     # Push badge count to Seals tab via OOB swap
                     pending_count = len(db.get_all_paused_sessions())
@@ -179,5 +162,5 @@ async def _run_agent_body(session_id: str) -> None:
             db.append_message(session_id, "assistant", msg["content"])
             await emit_stream_done(session_id, msg["content"])
             await _dispatch_reply(session_id, msg["content"])
-            db.set_session_status(session_id, "DONE")
+            db.set_session_status(session_id, db.DONE)
             return
