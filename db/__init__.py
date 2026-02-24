@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from threading import local
-from typing import Dict, List, Optional, TypedDict
+from typing import Dict, List, Optional, TypedDict, Literal
 
 DB_PATH = Path("data/claw.db")
 _local = local()
@@ -12,6 +12,8 @@ _local = local()
 # ==============================================================================
 # Database Types
 # ==============================================================================
+
+SessionStatus = Literal["RUNNING", "PAUSED", "DONE"]
 
 class OrderRow(TypedDict):
     order_id: str
@@ -22,7 +24,7 @@ class OrderRow(TypedDict):
 
 class SessionRow(TypedDict, total=False):
     session_id: str
-    status: str
+    status: SessionStatus
     channel: str
     message_history: str
     ai_enabled: int
@@ -161,7 +163,7 @@ def get_session(session_id: str) -> Optional[SessionRow]:
     return dict(row) if row else None
 
 
-def set_session_status(session_id: str, status: str) -> None:
+def set_session_status(session_id: str, status: SessionStatus) -> None:
     conn = _conn()
     conn.execute(
         "UPDATE sessions SET status = ? WHERE session_id = ?", (status, session_id)
@@ -169,7 +171,7 @@ def set_session_status(session_id: str, status: str) -> None:
     conn.commit()
 
 
-def try_transition_session(session_id: str, from_status: str, to_status: str) -> bool:
+def try_transition_session(session_id: str, from_status: SessionStatus, to_status: SessionStatus) -> bool:
     """Atomically transition status only if the current status matches from_status.
     Returns True if the row was updated (this caller won), False if it was already
     in a different state (another caller got there first)."""

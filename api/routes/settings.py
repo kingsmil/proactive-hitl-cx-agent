@@ -22,13 +22,15 @@ def get_settings(request: Request):
 @router.post("/settings")
 async def save_settings(
     request: Request,
-    model:              str = Form(default=""),
+    model: str = Form(default=""),
     openrouter_api_key: str = Form(default=""),
-):
+) -> HTMLResponse:
+    """Save the settings and return a brief seal animation."""
     if model.strip():
         db.set_setting("model", model.strip())
     if openrouter_api_key.strip():
         db.set_setting("openrouter_api_key", openrouter_api_key.strip())
-    return HTMLResponse(
-        '<span class="chip chip-sage" style="animation:driftIn .3s both;">Sealed ✦</span>'
+    return templates.TemplateResponse(
+        "partials/settings_sealed.html",
+        {"request": request}
     )

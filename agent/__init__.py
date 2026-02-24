@@ -59,10 +59,16 @@ async def run_agent(session_id: str) -> None:
         await _run_agent_locked(session_id)
 
 
-async def _run_agent_locked(session_id: str) -> None:
-    if session_id not in thought_queues:
-        thought_queues[session_id] = asyncio.Queue()
+from api.routes.config import templates
+from agent.tools import TOOL_ACK_MESSAGES
 
+def _sanitize_json_fragment(args_raw: str) -> str:
+    """Sanitize common LLM artifacts that break pure JSON parsing."""
+    if args_raw.rfind("}") != -1:
+        return args_raw[:args_raw.rfind("}") + 1]
+    return args_raw
+
+async def _run_agent_locked(session_id: str) -> None:
     _ensure_stream_queue(session_id)
     try:
         await _run_agent_body(session_id)
@@ -72,9 +78,8 @@ async def _run_agent_locked(session_id: str) -> None:
         await emit_stream_error(session_id)
         db.set_session_status(session_id, "DONE")
 
-
-async def _run_agent_body(session_id: str) -> None:
-    # ── Phase A: resume from an approved HITL action ────────────────────────
+async def _resume_hitl_action_if_pending(session_id: str) -> None:
+    """Execute a HITL action if one was approved by an operator."""
     pending = db.get_pending_action(session_id)
     if pending:
         await emit_thought(
@@ -88,6 +93,55 @@ async def _run_agent_body(session_id: str) -> None:
             "content": result,
         })
         db.delete_pending_action(session_id)
+
+async def _handle_final_reply(session_id: str, msg: dict) -> None:
+    """Store the LLM's final reply in DB and emit to SSE clients."""
+    await emit_thought(session_id, "reason", "Composing reply…")
+    db.append_message(session_id, "assistant", msg["content"])
+    await emit_stream_done(session_id, msg["content"])
+    await _dispatch_reply(session_id, msg["content"])
+    db.set_session_status(session_id, "DONE")
+
+async def _escalate_hitl_tool(session_id: str, name: str, args: dict, msg_content: str, tc_id: str) -> None:
+    """Pause the session to require operator approval to proceed with a HITL tool."""
+    await emit_thought(
+        session_id, "hitl",
+        "⚠ {} requires operator approval".format(name),
+    )
+    db.save_pending_action(
+        session_id, name, args,
+        reasoning=msg_content or "",
+        tool_call_id=tc_id,
+    )
+    db.set_session_status(session_id, "PAUSED")
+    
+    ack = TOOL_ACK_MESSAGES.get(name, "We acknowledge your request. We will escalate this to an agent to help approve.")
+    try:
+        ack_formatted = ack.format(**args)
+    except KeyError:
+        ack_formatted = ack
+
+    db.append_message(session_id, "assistant", ack_formatted)
+    
+    pending_count = len(db.get_all_paused_sessions())
+    oob_badge = templates.get_template("partials/queue_badge.html").render(pending_count=pending_count)
+
+    await emit_stream_done(session_id, ack_formatted, oob_html=oob_badge)
+    await _dispatch_reply(session_id, ack_formatted)
+
+async def _execute_safe_tool(session_id: str, name: str, args: dict, tc_id: str) -> None:
+    """Execute a safe tool that does not require operator approval."""
+    await emit_thought(session_id, "execute", "→ {}".format(name))
+    result = SAFE_TOOLS[name](**args)
+    db.append_raw_message(session_id, {
+        "role": "tool",
+        "tool_call_id": tc_id,
+        "content": result,
+    })
+
+async def _run_agent_body(session_id: str) -> None:
+    # ── Phase A: resume from an approved HITL action ────────────────────────
+    await _resume_hitl_action_if_pending(session_id)
 
     # ── Phase B: main loop ───────────────────────────────────────────────────
     while db.get_session(session_id)["status"] == "RUNNING":
@@ -123,61 +177,15 @@ async def _run_agent_body(session_id: str) -> None:
 
             for tc in msg["tool_calls"]:
                 name = tc["function"]["name"]
-                args_raw = tc["function"]["arguments"]
-                # Sanitize common LLM artifacts that break pure JSON parsing
-                if args_raw.rfind("}") != -1:
-                    args_raw = args_raw[:args_raw.rfind("}") + 1]
+                args_raw = _sanitize_json_fragment(tc["function"]["arguments"])
                 args = json.loads(args_raw)
 
                 if name in SAFE_TOOLS:
-                    await emit_thought(session_id, "execute", "→ {}".format(name))
-                    result = SAFE_TOOLS[name](**args)
-                    db.append_raw_message(session_id, {
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": result,
-                    })
+                    await _execute_safe_tool(session_id, name, args, tc["id"])
 
                 elif name in HITL_TOOLS:
-                    await emit_thought(
-                        session_id, "hitl",
-                        "⚠ {} requires operator approval".format(name),
-                    )
-                    db.save_pending_action(
-                        session_id, name, args,
-                        reasoning=msg.get("content") or "",
-                        tool_call_id=tc["id"],
-                    )
-                    db.set_session_status(session_id, "PAUSED")
-                    if name == "issue_refund":
-                        ack = (
-                            "We acknowledge your refund request for order {order_id} and your "
-                            "reason for it (\"{reason}\"). We will escalate this to an agent "
-                            "to help approve."
-                        ).format(
-                            order_id=args.get("order_id", ""),
-                            reason=args.get("reason", ""),
-                        )
-                    else:
-                        ack = (
-                            "We acknowledge your request and your reason for it. "
-                            "We will escalate this to an agent to help approve."
-                        )
-                    db.append_message(session_id, "assistant", ack)
-                    # Push badge count to Seals tab via OOB swap
-                    pending_count = len(db.get_all_paused_sessions())
-                    oob_badge = (
-                        '<span id="queue-count" hx-swap-oob="innerHTML">'
-                        '{} awaiting</span>'
-                    ).format(pending_count)
-                    await emit_stream_done(session_id, ack, oob_html=oob_badge)
-                    await _dispatch_reply(session_id, ack)
+                    await _escalate_hitl_tool(session_id, name, args, msg.get("content"), tc["id"])
                     return  # halt — resumed via /actions/approve
-
         else:  # finish_reason == "stop"
-            await emit_thought(session_id, "reason", "Composing reply…")
-            db.append_message(session_id, "assistant", msg["content"])
-            await emit_stream_done(session_id, msg["content"])
-            await _dispatch_reply(session_id, msg["content"])
-            db.set_session_status(session_id, "DONE")
+            await _handle_final_reply(session_id, msg)
             return

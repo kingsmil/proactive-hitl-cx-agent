@@ -67,6 +67,18 @@ HITL_TOOLS = {
     "upsert_scheduled_task": upsert_scheduled_task,
 }
 
+TOOL_ACK_MESSAGES = {
+    "issue_refund": (
+        'We acknowledge your refund request for order {order_id} and your '
+        'reason for it ("{reason}"). We will escalate this to an agent '
+        'to help approve.'
+    ),
+    "upsert_scheduled_task": (
+        "We acknowledge your request to configure a polling rule. "
+        "We will escalate this to an agent to help approve."
+    ),
+}
+
 TOOLS = [
     {
         "type": "function",

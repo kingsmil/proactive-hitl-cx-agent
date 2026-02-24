@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Request, BackgroundTasks, Form
+from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from starlette.templating import _TemplateResponse as TemplateResponse
 import db
 from agent import run_agent
 from api.routes.config import templates
@@ -7,7 +9,7 @@ from api.routes.config import templates
 router = APIRouter()
 
 @router.get("/actions/pending")
-def actions_pending(request: Request):
+def actions_pending(request: Request) -> TemplateResponse:
     return templates.TemplateResponse(
         "partials/action_queue.html",
         {"request": request, "pending_sessions": db.get_all_paused_sessions()},
@@ -22,12 +24,17 @@ async def approve_action(
     # Atomic CAS: PAUSED → RUNNING. Only the first caller wins; concurrent
     # duplicates (double-click, two tabs) get rowcount=0 and are rejected.
     if not db.try_transition_session(session_id, "PAUSED", "RUNNING"):
-        return _already_handled(session_id)
+        return _already_handled(request, session_id)
     background_tasks.add_task(run_agent, session_id)
     pending_count = max(0, len(db.get_all_paused_sessions()) - 1)
     response = templates.TemplateResponse(
         "partials/action_decision.html",
-        {"request": request, "decision": "approved", "session_id": session_id, "pending_count": pending_count},
+        {
+            "request": request, 
+            "decision": "approved", 
+            "session_id": session_id, 
+            "pending_count": pending_count
+        },
     )
     response.headers["HX-Trigger"] = f"reload-chat-{session_id}"
     return response
@@ -41,7 +48,7 @@ async def reject_action(
 ):
     # Same CAS gate — whichever of approve/reject lands first in the DB wins.
     if not db.try_transition_session(session_id, "PAUSED", "RUNNING"):
-        return _already_handled(session_id)
+        return _already_handled(request, session_id)
     if reason.strip():
         rejection_msg = "Action rejected by operator. Reason: {}".format(reason.strip())
     else:
@@ -49,17 +56,22 @@ async def reject_action(
     db.delete_pending_action(session_id)
     db.append_message(session_id, "tool", rejection_msg)
     background_tasks.add_task(run_agent, session_id)
+    pending_count = len(db.get_all_paused_sessions())
     response = templates.TemplateResponse(
         "partials/action_decision.html",
-        {"request": request, "decision": "rejected", "session_id": session_id, "pending_count": len(db.get_all_paused_sessions())},
+        {
+            "request": request, 
+            "decision": "rejected", 
+            "session_id": session_id, 
+            "pending_count": pending_count
+        },
     )
     response.headers["HX-Trigger"] = f"reload-chat-{session_id}"
     return response
 
-def _already_handled(session_id: str) -> HTMLResponse:
+def _already_handled(request: Request, session_id: str) -> TemplateResponse:
     """Returned when an approve/reject arrives after the action was already resolved."""
-    return HTMLResponse(
-        '<div class="action-card result-rejected" style="opacity:0.6;">'
-        "⚠ Already handled by another operator — "
-        '<code style="font-size:9px;">{}</code></div>'.format(session_id)
+    return templates.TemplateResponse(
+        "partials/action_already_handled.html",
+        {"request": request, "session_id": session_id}
     )

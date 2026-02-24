@@ -2,6 +2,7 @@ import asyncio
 import json
 from markupsafe import escape
 from jinja2 import Environment, FileSystemLoader
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # SSE thought queues — per-session asyncio.Queue, read by api/app.py
@@ -15,8 +16,15 @@ def _ensure_stream_queue(session_id):
     if session_id not in stream_queues:
         stream_queues[session_id] = asyncio.Queue()
 
+
+def _ensure_thought_queue(session_id):
+    if session_id not in thought_queues:
+        thought_queues[session_id] = asyncio.Queue()
+
+
 # Jinja2 env for rendering thought_entry.html without a FastAPI Request object
-_jinja = Environment(loader=FileSystemLoader("frontend/templates"))
+_TEMPLATES_DIR = Path(__file__).parent.parent / "frontend" / "templates"
+_jinja = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)))
 
 
 # ---------------------------------------------------------------------------
@@ -28,8 +36,7 @@ async def emit_thought(session_id: str, node: str, preview: str) -> None:
     html = _jinja.get_template("partials/thought_entry.html").render(
         session_id=session_id, node=node, preview=preview
     )
-    if session_id not in thought_queues:
-        thought_queues[session_id] = asyncio.Queue()
+    _ensure_thought_queue(session_id)
     await thought_queues[session_id].put(html)
 
 
@@ -78,16 +85,14 @@ async def emit_llm_thought(
         request_count=len(request_messages),
         response_text=resp_summary,
     )
-    if session_id not in thought_queues:
-        thought_queues[session_id] = asyncio.Queue()
+    _ensure_thought_queue(session_id)
     await thought_queues[session_id].put(html)
 
 
 async def emit_error(session_id: str, message: str) -> None:
     """Render an error toast partial and push it as a named 'error' SSE event."""
     html = _jinja.get_template("partials/error_toast.html").render(message=message)
-    if session_id not in thought_queues:
-        thought_queues[session_id] = asyncio.Queue()
+    _ensure_thought_queue(session_id)
     await thought_queues[session_id].put({"event": "error", "data": html})
 
 
