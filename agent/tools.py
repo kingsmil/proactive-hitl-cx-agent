@@ -23,11 +23,15 @@ log = logging.getLogger("tools")
 # Tools Configuration & Schema
 # ---------------------------------------------------------------------------
 
-def check_order_status(order_id: str) -> str:
-    """Query the orders table and return a human-readable status string."""
+def check_order_status(order_id: str, customer_phone: str) -> str:
+    """Query the orders table and return a human-readable status string.
+    Ensures the provided phone number matches the order.
+    """
     row = db.get_order(order_id)
     if row is None:
         return "Order {} not found.".format(order_id)
+    if row["customer_phone"] != customer_phone:
+        return "Order {} not found or phone number does not match.".format(order_id)
     return (
         "Order {order_id}: customer='{customer_name}', "
         "product='{product_name}' x{item_count}, "
@@ -36,15 +40,19 @@ def check_order_status(order_id: str) -> str:
     ).format(**row)
 
 
-def list_orders(status: str = "", customer_name: str = "") -> str:
-    """Query orders with optional filters and return a summary for the agent to suggest."""
+def list_orders(customer_phone: str, status: str = "", customer_name: str = "") -> str:
+    """Query orders with optional filters and return a summary for the agent to suggest.
+    Only returns orders matching the provided customer_phone.
+    """
     all_orders = db.get_all_orders()
+    # Always filter by the required phone number first
+    all_orders = [o for o in all_orders if o["customer_phone"] == customer_phone]
     if status:
         all_orders = [o for o in all_orders if o["status"].lower() == status.lower()]
     if customer_name:
         all_orders = [o for o in all_orders if customer_name.lower() in o["customer_name"].lower()]
     if not all_orders:
-        return "No orders found matching the given filters."
+        return "No orders found matching the given filters for this phone number."
     lines = []
     for o in all_orders:
         lines.append(
@@ -54,8 +62,18 @@ def list_orders(status: str = "", customer_name: str = "") -> str:
     return "Found {} order(s):\n{}".format(len(all_orders), "\n".join(lines))
 
 
-def issue_refund(order_id: str, amount: float, reason: str) -> str:
-    """Stub — triggers the HITL gate; only executed after operator approval."""
+def issue_refund(order_id: str, amount: float, reason: str, customer_phone: str) -> str:
+    """Stub — triggers the HITL gate; only executed after operator approval.
+    Validates the phone number matches the order and that the order is not cancelled.
+    """
+    row = db.get_order(order_id)
+    if row is None:
+        return "Cannot issue refund: Order {} not found.".format(order_id)
+    if row["customer_phone"] != customer_phone:
+        return "Cannot issue refund: Phone number does not match order {}.".format(order_id)
+    if row["status"].lower() == "cancelled":
+        return "Cannot issue refund: Order {} is already cancelled.".format(order_id)
+        
     return "Refund of ${:.2f} issued for order {} — reason: {}.".format(
         amount, order_id, reason
     )
@@ -137,6 +155,10 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "customer_phone": {
+                        "type": "string",
+                        "description": "The customer's phone number as provided by the user.",
+                    },
                     "status": {
                         "type": "string",
                         "description": "Filter by order status (e.g. 'processing', 'delayed', 'delivered', 'shipped', 'cancelled'). Leave empty for all.",
@@ -146,7 +168,7 @@ TOOLS = [
                         "description": "Filter by customer name (partial match). Leave empty for all.",
                     },
                 },
-                "required": [],
+                "required": ["customer_phone"],
             },
         },
     },
@@ -161,9 +183,13 @@ TOOLS = [
                     "order_id": {
                         "type": "string",
                         "description": "The order identifier, e.g. ORD-001",
+                    },
+                    "customer_phone": {
+                        "type": "string",
+                        "description": "The customer's phone number as provided by the user.",
                     }
                 },
-                "required": ["order_id"],
+                "required": ["order_id", "customer_phone"],
             },
         },
     },
@@ -176,13 +202,17 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "order_id": {"type": "string"},
+                    "customer_phone": {
+                        "type": "string",
+                        "description": "The customer's phone number as provided by the user.",
+                    },
                     "amount": {
                         "type": "number",
                         "description": "Refund amount in USD",
                     },
                     "reason": {"type": "string"},
                 },
-                "required": ["order_id", "amount", "reason"],
+                "required": ["order_id", "customer_phone", "amount", "reason"],
             },
         },
     },
