@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import secrets
@@ -8,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 import db
 from agent import run_agent
+from agent.sse_events import emit_user_message
 
 router = APIRouter()
 log = logging.getLogger("telegram_webhook")
@@ -61,6 +63,9 @@ async def telegram_webhook(
     session = db.get_or_create_session(session_id, channel="telegram")
     db.append_message(session_id, "user", text)
     db.set_session_status(session_id, db.RUNNING)
+
+    # Push user message to SSE so the operator's chat pane updates in real-time
+    await emit_user_message(session_id, text)
 
     # Trigger the agent if AI is enabled for this session
     if session.get("ai_enabled", 1):

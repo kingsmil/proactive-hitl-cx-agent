@@ -11,7 +11,10 @@ router = APIRouter()
 def root():
     sessions = db.get_all_sessions()
     if sessions:
-        return RedirectResponse(url="/chat/{}".format(sessions[0]["session_id"]))
+        # Prefer the most active session: RUNNING > PAUSED > DONE
+        priority = {"RUNNING": 0, "PAUSED": 1, "DONE": 2}
+        best = min(sessions, key=lambda s: priority.get(s.get("status", "DONE"), 2))
+        return RedirectResponse(url="/chat/{}".format(best["session_id"]))
     return RedirectResponse(url="/chat/{}".format(uuid.uuid4()))
 
 @router.get("/chat/{session_id}")

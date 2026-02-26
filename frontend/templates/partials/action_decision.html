@@ -6,7 +6,7 @@
             stroke-linejoin="round" />
     </svg>
     <span>
-        Seal granted — the spell was cast &nbsp;
+        Approved — action executed &nbsp;
         <code style="font-family:var(--font-mono); font-size:9px; opacity:0.6;">{{ session_id[-6:] }}</code>
     </span>
 </div>
@@ -18,14 +18,14 @@
         <line x1="9.5" y1="4.5" x2="4.5" y2="9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
     </svg>
     <span>
-        Seal denied — the customer shall be notified &nbsp;
+        Denied — customer will be notified &nbsp;
         <code style="font-family:var(--font-mono); font-size:9px; opacity:0.6;">{{ session_id[-6:] }}</code>
     </span>
 </div>
 {% endif %}
 
 <!-- Real-time queue count badge update -->
-<span id="queue-count" hx-swap-oob="innerHTML">{{ pending_count }} awaiting</span>
+<span id="queue-count" hx-swap-oob="innerHTML">{{ pending_count }} pending</span>
 
 <!-- Append processing bubble to chat pane seamlessly -->
 <div id="chat-stream-{{ session_id }}" hx-swap-oob="beforeend">
@@ -35,7 +35,7 @@
                 <span class="pending-orbs"><span></span><span></span><span></span></span>
                 <span style="font-family:var(--font-body); font-style:italic; font-size:13px;">processing…</span>
             </div>
-            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">✦ weaving</div>
+            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">processing</div>
             <div sse-swap="done" hx-swap="innerHTML" hx-target="#reply-body-{{ session_id }}"></div>
         </div>
         <div class="msg-avatar">✧</div>

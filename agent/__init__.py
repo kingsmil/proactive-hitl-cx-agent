@@ -151,7 +151,7 @@ async def _run_agent_body(session_id: str) -> None:
                     pending_count = len(db.get_all_paused_sessions())
                     oob_badge = (
                         '<span id="queue-count" hx-swap-oob="innerHTML">'
-                        '{} awaiting</span>'
+                        '{} pending</span>'
                     ).format(pending_count)
                     await emit_stream_done(session_id, ack, oob_html=oob_badge)
                     await _dispatch_reply(session_id, ack)

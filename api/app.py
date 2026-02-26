@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import db
-from api.routes import chat, inbox, actions, sse, settings, telegram
+from api.routes import chat, inbox, actions, sse, settings, telegram, demo
 from poller import start_poller, stop_poller
 
 
@@ -27,3 +27,4 @@ app.include_router(actions.router)
 app.include_router(sse.router)
 app.include_router(settings.router)
 app.include_router(telegram.router)
+app.include_router(demo.router)

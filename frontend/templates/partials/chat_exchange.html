@@ -15,7 +15,7 @@
             <span class="streaming-reply" sse-swap="chunk" hx-swap="beforeend"></span>
             <span class="pending-orbs"><span></span><span></span><span></span></span>
         </div>
-        <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">✦ awaiting the seal</div>
+        <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">processing…</div>
         <!-- done event replaces the entire body with the finished bubble -->
         <div sse-swap="done" hx-swap="innerHTML" hx-target="#reply-body-{{ session_id }}"></div>
     </div>

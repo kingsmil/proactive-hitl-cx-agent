@@ -101,6 +101,19 @@ async def emit_chat_append(session_id: str, reply: str) -> None:
     await stream_queues[session_id].put({"event": "append", "data": html})
 
 
+async def emit_user_message(session_id: str, content: str) -> None:
+    """Push an incoming user message bubble as an 'append' event to stream_queues.
+
+    Used when messages arrive from external channels (e.g. Telegram) so the
+    operator's chat pane updates in real-time without needing a page refresh.
+    """
+    html = _jinja.get_template("partials/message_bubble.html").render(
+        role="user", content=content, is_manual=False
+    )
+    _ensure_stream_queue(session_id)
+    await stream_queues[session_id].put({"event": "append", "data": html})
+
+
 async def emit_stream_done(session_id: str, reply: str, oob_html: str = "") -> None:
     """Push the final agent bubble HTML as a named 'done' event to stream_queues."""
     html = _jinja.get_template("partials/agent_stream_done.html").render(reply=reply, oob_html=oob_html)

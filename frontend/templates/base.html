@@ -21,7 +21,7 @@
     <script src="https://unpkg.com/htmx-ext-sse@2/sse.js"></script>
 
     <style>
-        /* ── Design tokens (Country Club Pickleball) ──────────────────── */
+        /* ── Design tokens ──────────────────────────────────────────────── */
         :root {
             /* Backgrounds: Warm Off-White / Cream */
             --void: #fdfbf7;
@@ -30,7 +30,7 @@
             --lift: #faf8f2;
             --raise: #f5f2e8;
 
-            /* Pastel Mint Green (Pickleball Court Vibe) */
+            /* Pastel Mint Green (Primary) */
             --pb-court: #a8e6cf;
             --pb-court-dim: rgba(168, 230, 207, 0.55);
             --pb-court-glow: rgba(168, 230, 207, 0.25);
@@ -92,12 +92,12 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* ── Background: Pastel Sunburst & Pickleball Pattern ──────────── */
+        /* ── Background: Subtle dot pattern ─────────────────────────────── */
         body::before {
             content: '';
             position: fixed;
             inset: 0;
-            /* Faint dotted pattern representing a paddle / court texture */
+            /* Faint dotted background texture */
             background-image:
                 radial-gradient(circle, rgba(168, 230, 207, 0.2) 1px, transparent 1px),
                 radial-gradient(circle, rgba(255, 218, 193, 0.15) 1px, transparent 1px);
@@ -1088,7 +1088,7 @@
             border-radius: var(--radius) 1px var(--radius) var(--radius) !important;
         }
 
-        /* ── Manual agent message — court border ─────────────────────────── */
+        /* ── Manual agent message — accent border ────────────────────────── */
         .msg-manual {
             border-left: 2px solid var(--pb-court) !important;
             border-color: var(--pb-court-dim) !important;
@@ -1100,7 +1100,7 @@
             color: var(--pb-court) !important;
         }
 
-        /* ── Commune reply form ─────────────────────────────────────────── */
+        /* ── Agent reply form ──────────────────────────────────────────── */
         .commune-reply-form {
             padding: 10px 16px;
             border-top: 1px solid var(--border-mist);
@@ -1186,7 +1186,7 @@
             line-height: 1;
         }
 
-        /* ── Pane tabs (Inbox / Seals) ───────────────────────────────────── */
+        /* ── Pane tabs (Inbox / Approvals) ─────────────────────────────── */
         .pane-tab {
             flex: 1;
             display: flex;
