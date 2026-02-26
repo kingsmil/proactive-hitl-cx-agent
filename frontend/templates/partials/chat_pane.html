@@ -16,13 +16,13 @@
         display:flex; flex-direction:column; align-items:center; justify-content:center;
         height:100%; gap:10px; color:var(--text-dim); text-align:center; padding:24px;
     ">
-    <div style="font-size:22px; opacity:0.3;">✦</div>
+    <div style="font-size:22px; opacity:0.3;">—</div>
     <span
-        style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">Awaiting
-        messages</span>
+        style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">No
+        messages yet</span>
     <span
         style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-ghost); line-height:1.7;">
-        Inject a customer message from the Inbox<br />or wait for an inbound contact.
+        Send a customer message from the Inbox<br />or wait for an inbound contact.
     </span>
 </div>
 {% endif %}
@@ -39,7 +39,7 @@
                 <span class="streaming-reply" sse-swap="chunk" hx-swap="beforeend"></span>
                 <span class="pending-orbs"><span></span><span></span><span></span></span>
             </div>
-            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">✦ awaiting the seal</div>
+            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">processing…</div>
             <div sse-swap="done" hx-swap="innerHTML" hx-target="#reply-body-{{ session_id }}"></div>
         </div>
         <div class="msg-avatar">✧</div>
@@ -52,7 +52,7 @@
                 <span class="pending-orbs"><span></span><span></span><span></span></span>
                 <span style="font-family:var(--font-body); font-style:italic; font-size:13px;">processing…</span>
             </div>
-            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">✦ weaving</div>
+            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">thinking…</div>
             <div sse-swap="done" hx-swap="innerHTML" hx-target="#reply-body-{{ session_id }}"></div>
         </div>
         <div class="msg-avatar">✧</div>
@@ -100,8 +100,8 @@
         padding:7px 16px; border-top:1px solid var(--border-mist);
         display:flex; align-items:center; gap:8px; flex-shrink:0;
     ">
-        <div class="weaving-dots"><span>✦</span><span>✦</span><span>✦</span></div>
-        <span style="font-family:var(--font-body); font-style:italic; font-size:11px; color:var(--lav-dim);">weaving a
+        <div class="weaving-dots"><span>•</span><span>•</span><span>•</span></div>
+        <span style="font-family:var(--font-body); font-style:italic; font-size:11px; color:var(--lav-dim);">preparing
             response…</span>
     </div>
 

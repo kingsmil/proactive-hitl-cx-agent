@@ -427,6 +427,13 @@ def mark_order_outreached(order_id: str) -> None:
     conn.commit()
 
 
+def mark_order_not_outreached(order_id: str) -> None:
+    """Reset the outreached flag so the order can be re-triggered (used for demos)."""
+    conn = _conn()
+    conn.execute("UPDATE orders SET outreached = 0 WHERE order_id = ?", (order_id,))
+    conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # Seed data
 # ---------------------------------------------------------------------------
@@ -443,14 +450,14 @@ def seed_orders() -> None:
     now = datetime.now(timezone.utc)
     # (order_id, customer_name, customer_phone, product_name, item_count, total_amount, status, last_updated)
     orders = [
-        ("ORD-001", "Alice Johnson",  "+1-555-0101", "Wireless Headphones",      1,  79.99, "processing", now.isoformat()),
-        ("ORD-002", "Bob Martinez",   "+1-555-0102", "Running Shoes (Size 10)",   1, 129.95, "delayed",    (now - timedelta(hours=48)).isoformat()),
-        ("ORD-003", "Carol Chen",     "+1-555-0103", "Organic Coffee Beans 2lb",  3,  44.97, "delivered",  now.isoformat()),
-        ("ORD-004", "David Kim",      "+1-555-0104", "Laptop Stand (Adjustable)", 1,  54.99, "delayed",    (now - timedelta(hours=72)).isoformat()),
-        ("ORD-005", "Eva Rossi",      "+1-555-0105", "Yoga Mat & Blocks Set",     2,  67.50, "processing", now.isoformat()),
-        ("ORD-006", "Frank Okafor",   "+1-555-0106", "Bluetooth Speaker",         1,  45.00, "shipped",    (now - timedelta(hours=12)).isoformat()),
-        ("ORD-007", "Grace Tanaka",   "+1-555-0107", "Stainless Steel Water Bottle", 4, 95.80, "delayed", (now - timedelta(hours=36)).isoformat()),
-        ("ORD-008", "Henry Dubois",   "+1-555-0108", "USB-C Hub Adapter",         1,  34.99, "cancelled",  (now - timedelta(hours=6)).isoformat()),
+        ("ORD-001", "Alice Johnson",  "+1-555-0101", "Honolulu Sword & Shield J2NF Paddle",       1, 129.99, "processing", now.isoformat()),
+        ("ORD-002", "Bob Martinez",   "+1-555-0102", "Selkirk VANGUARD Power Air Invikta",        1, 249.95, "delayed",    (now - timedelta(hours=48)).isoformat()),
+        ("ORD-003", "Carol Chen",     "+1-555-0103", "Franklin X-40 Outdoor Pickleballs (12-pack)", 3,  35.97, "delivered",  now.isoformat()),
+        ("ORD-004", "David Kim",      "+1-555-0104", "JOOLA Ben Johns Hyperion CFS 16mm",         1, 199.99, "delayed",    (now - timedelta(hours=72)).isoformat()),
+        ("ORD-005", "Eva Rossi",      "+1-555-0105", "Pickleball Court Shoes - Skechers Viper",   2, 159.00, "processing", now.isoformat()),
+        ("ORD-006", "Frank Okafor",   "+1-555-0106", "Onix Graphite Z5 Paddle",                   1,  89.00, "shipped",    (now - timedelta(hours=12)).isoformat()),
+        ("ORD-007", "Grace Tanaka",   "+1-555-0107", "Pro Pickleball Bag & Accessories Kit",       4, 175.80, "delayed",    (now - timedelta(hours=36)).isoformat()),
+        ("ORD-008", "Henry Dubois",   "+1-555-0108", "HEAD Extreme Tour Max Paddle",               1, 179.99, "cancelled",  (now - timedelta(hours=6)).isoformat()),
     ]
     conn = _conn()
     conn.executemany(

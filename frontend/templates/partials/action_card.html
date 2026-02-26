@@ -6,7 +6,7 @@
     <!-- Header -->
     <div class="action-card-header">
         <div style="display:flex; align-items:center; gap:7px;">
-            <span class="chip chip-gold">✦ High Risk</span>
+            <span class="chip chip-gold">Requires Approval</span>
             <span class="chip chip-outline">{{ session.channel }}</span>
         </div>
         <span class="action-sid">{{ sid }}</span>
@@ -14,7 +14,7 @@
 
     <!-- Tool name -->
     <div style="display:flex; align-items:baseline; gap:10px;">
-        <span style="font-family:var(--font-display); font-size:8px; letter-spacing:0.16em; color:var(--text-dim); text-transform:uppercase;">Spell</span>
+        <span style="font-family:var(--font-display); font-size:8px; letter-spacing:0.16em; color:var(--text-dim); text-transform:uppercase;">Action</span>
         <span class="action-tool-name">{{ action.tool_name }}</span>
     </div>
 
@@ -39,7 +39,7 @@
         id="reason-{{ sid }}"
         name="reason"
         class="reason-input"
-        placeholder="Reason for denial (optional)…"
+        placeholder="Reason for rejection (optional)…"
     />
     <div class="btn-action-row">
         <button
@@ -48,7 +48,7 @@
             hx-target="closest .action-card"
             hx-swap="outerHTML"
         >
-            ✦ &thinsp;Grant
+            Approve
         </button>
         <button
             class="btn-reject"
@@ -57,7 +57,7 @@
             hx-swap="outerHTML"
             hx-include="#reason-{{ sid }}"
         >
-            ✕ &thinsp;Deny
+            Reject
         </button>
     </div>
 
