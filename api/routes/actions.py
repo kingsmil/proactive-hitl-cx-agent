@@ -28,7 +28,6 @@ async def approve_action(
         "partials/action_decision.html",
         {"request": request, "decision": "approved", "session_id": session_id, "pending_count": pending_count},
     )
-    response.headers["HX-Trigger"] = f"reload-chat-{session_id}"
     return response
 
 @router.post("/actions/reject/{session_id}")
@@ -52,7 +51,6 @@ async def reject_action(
         "partials/action_decision.html",
         {"request": request, "decision": "rejected", "session_id": session_id, "pending_count": len(db.get_all_paused_sessions())},
     )
-    response.headers["HX-Trigger"] = f"reload-chat-{session_id}"
     return response
 
 def _already_handled(request: Request, session_id: str):
