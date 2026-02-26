@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Request, Form
+from fastapi import APIRouter, Form
 from fastapi.responses import JSONResponse
 
 import db
@@ -11,7 +11,7 @@ router = APIRouter()
 log = logging.getLogger("demo")
 
 
-async def _trigger_outreach_for_order(order: dict, task_label: str) -> str:
+async def _trigger_outreach_for_order(order: dict) -> str:
     """Create a proactive session for a single order and enqueue the agent."""
     sid = "proactive-demo-{}".format(order["order_id"])
     db.get_or_create_session(sid, channel="proactive")
@@ -35,8 +35,6 @@ async def _trigger_outreach_for_order(order: dict, task_label: str) -> str:
 
 @router.post("/demo/trigger-outreach")
 async def demo_trigger_outreach(
-    request: Request,
-    background_tasks: BackgroundTasks,
     phone: str = Form(default=""),
 ):
     """Force-trigger the proactive outreach poller for demo purposes.
@@ -62,7 +60,7 @@ async def demo_trigger_outreach(
     triggered = []
     for order in orders:
         db.mark_order_outreached(order["order_id"])
-        sid = await _trigger_outreach_for_order(order, "demo")
+        sid = await _trigger_outreach_for_order(order)
         triggered.append({"session_id": sid, "order_id": order["order_id"], "phone": order["customer_phone"]})
         log.info("Demo outreach triggered for %s → session %s", order["order_id"], sid)
 
