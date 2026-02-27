@@ -26,7 +26,13 @@ async def approve_action(
     if pending and pending.get("tool_name") == "issue_refund":
         order_id = pending["arguments"].get("order_id", "")
         if order_id:
-            db.log_order_event(order_id, "refund_approved", "Operator approved refund", actor="operator", session_id=session_id)
+            db.log_order_event(
+                order_id,
+                "refund_approved",
+                "Operator approved refund",
+                actor="operator",
+                session_id=session_id,
+            )
     background_tasks.add_task(run_agent, session_id)
     pending_count = max(0, len(db.get_all_paused_sessions()) - 1)
     response = templates.TemplateResponse(
@@ -49,7 +55,13 @@ async def reject_action(
     if pending and pending.get("tool_name") == "issue_refund":
         order_id = pending["arguments"].get("order_id", "")
         if order_id:
-            db.log_order_event(order_id, "refund_rejected", "Operator rejected refund", actor="operator", session_id=session_id)
+            db.log_order_event(
+                order_id,
+                "refund_rejected",
+                "Operator rejected refund",
+                actor="operator",
+                session_id=session_id,
+            )
     if reason.strip():
         rejection_msg = "Action rejected by operator. Reason: {}".format(reason.strip())
     else:

@@ -464,6 +464,7 @@ def log_order_event(
     actor: str = "system",
     session_id: Optional[str] = None,
 ) -> str:
+    """Log an interaction or state change to the order's timeline."""
     event_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     conn = _conn()
@@ -478,6 +479,7 @@ def log_order_event(
 
 
 def get_order_timeline(order_id: str) -> List[OrderEventRow]:
+    """Return all logged events for an order, formatted chronologically."""
     rows = _conn().execute(
         "SELECT * FROM order_events WHERE order_id = ? ORDER BY created_at ASC",
         (order_id,),
@@ -485,7 +487,8 @@ def get_order_timeline(order_id: str) -> List[OrderEventRow]:
     return [dict(row) for row in rows]
 
 
-def get_all_orders_with_event_count() -> list:
+def get_all_orders_with_event_count() -> List[Dict]:
+    """Return all orders natively ordered, joined with a total event count."""
     rows = _conn().execute(
         """
         SELECT o.*, COALESCE(e.cnt, 0) AS event_count
