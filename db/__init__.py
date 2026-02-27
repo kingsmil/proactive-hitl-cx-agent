@@ -161,6 +161,12 @@ def init_db() -> None:
             conn.commit()
         except sqlite3.OperationalError:
             pass  # Expected: column already exists after migration
+    try:
+        conn.execute("ALTER TABLE order_events ADD COLUMN session_id TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+        
     seed_orders()
     seed_sessions()
 
