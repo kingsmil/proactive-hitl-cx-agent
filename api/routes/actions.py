@@ -22,6 +22,17 @@ async def approve_action(
     # duplicates (double-click, two tabs) get rowcount=0 and are rejected.
     if not db.try_transition_session(session_id, db.PAUSED, db.RUNNING):
         return _already_handled(request, session_id)
+    pending = db.get_pending_action(session_id)
+    if pending and pending.get("tool_name") == "issue_refund":
+        order_id = pending["arguments"].get("order_id", "")
+        if order_id:
+            db.log_order_event(
+                order_id,
+                "refund_approved",
+                "Operator approved refund",
+                actor="operator",
+                session_id=session_id,
+            )
     background_tasks.add_task(run_agent, session_id)
     pending_count = max(0, len(db.get_all_paused_sessions()) - 1)
     response = templates.TemplateResponse(
@@ -40,6 +51,17 @@ async def reject_action(
     # Same CAS gate — whichever of approve/reject lands first in the DB wins.
     if not db.try_transition_session(session_id, db.PAUSED, db.RUNNING):
         return _already_handled(request, session_id)
+    pending = db.get_pending_action(session_id)
+    if pending and pending.get("tool_name") == "issue_refund":
+        order_id = pending["arguments"].get("order_id", "")
+        if order_id:
+            db.log_order_event(
+                order_id,
+                "refund_rejected",
+                "Operator rejected refund",
+                actor="operator",
+                session_id=session_id,
+            )
     if reason.strip():
         rejection_msg = "Action rejected by operator. Reason: {}".format(reason.strip())
     else:

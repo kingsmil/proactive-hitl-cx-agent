@@ -23,47 +23,60 @@
     <style>
         /* ── Design tokens ──────────────────────────────────────────────── */
         :root {
-            /* Backgrounds: Warm Off-White / Cream */
-            --void: #fdfbf7;
-            --panel: #fdfcf9;
+            /* Backgrounds: Clean White */
+            --void: #ffffff;
+            --panel: #ffffff;
             --surface: #ffffff;
-            --lift: #faf8f2;
-            --raise: #f5f2e8;
+            --lift: #f7faf8;
+            --raise: #eef5f1;
 
-            /* Pastel Mint Green (Primary) */
-            --pb-court: #a8e6cf;
-            --pb-court-dim: rgba(168, 230, 207, 0.55);
-            --pb-court-glow: rgba(168, 230, 207, 0.25);
+            /* Mint Green (Primary) */
+            --pb-court: #2fbc7f;
+            --pb-court-dim: rgba(47, 188, 127, 0.45);
+            --pb-court-glow: rgba(47, 188, 127, 0.12);
 
-            /* Soft Lavender/Pink (Secondary/Accent) */
-            --pb-accent: #ffdac1;
-            --pb-accent-dim: rgba(255, 218, 193, 0.6);
-            --pb-accent-glow: rgba(255, 218, 193, 0.3);
+            /* Lavender (Secondary/Accent) */
+            --pb-accent: #8b7ec8;
+            --pb-accent-dim: rgba(139, 126, 200, 0.5);
+            --pb-accent-glow: rgba(139, 126, 200, 0.12);
 
-            /* Warm Peach/Sunburst */
-            --pb-sun: #ffecd2;
-            --pb-sun-dim: rgba(255, 236, 210, 0.6);
-            --pb-sun-glow: rgba(255, 236, 210, 0.3);
+            /* Amber/Gold */
+            --pb-sun: #e8a830;
+            --pb-sun-dim: rgba(232, 168, 48, 0.45);
+            --pb-sun-glow: rgba(232, 168, 48, 0.12);
 
-            /* Warning / Active (Soft Coral) */
-            --pb-coral: #ffb7b2;
-            --pb-coral-dim: rgba(255, 183, 178, 0.6);
-            --pb-coral-glow: rgba(255, 183, 178, 0.25);
+            /* Coral/Danger */
+            --pb-coral: #e85c5c;
+            --pb-coral-dim: rgba(232, 92, 92, 0.45);
+            --pb-coral-glow: rgba(232, 92, 92, 0.10);
 
-            /* Dusty Blue / Info */
-            --pb-sky: #b5ebd2;
+            /* Sky/Info */
+            --pb-sky: #3fafd7;
 
-            /* Borders */
-            --border-mist: rgba(45, 52, 54, 0.05);
-            --border-dim: rgba(45, 52, 54, 0.10);
-            --border-mid: rgba(45, 52, 54, 0.15);
-            --border-soft: rgba(45, 52, 54, 0.22);
+            /* Aliases (used by node tags, inbox, etc.) */
+            --lav: #8b7ec8;
+            --lav-dim: rgba(139, 126, 200, 0.45);
+            --lav-glow: rgba(139, 126, 200, 0.10);
+            --sage: #2fbc7f;
+            --sage-glow: rgba(47, 188, 127, 0.10);
+            --gold: #e8a830;
+            --gold-dim: rgba(232, 168, 48, 0.45);
+            --gold-glow: rgba(232, 168, 48, 0.10);
+            --sky: #3fafd7;
+            --rose: #e85c5c;
+            --rose-dim: rgba(232, 92, 92, 0.45);
 
-            /* Text High Contrast Light Mode */
-            --text-bright: #2d3436;
-            --text-mid: #636e72;
-            --text-dim: #b2bec3;
-            --text-ghost: #dfe6e9;
+            /* Borders — stronger for contrast on white */
+            --border-mist: rgba(45, 52, 54, 0.08);
+            --border-dim: rgba(45, 52, 54, 0.15);
+            --border-mid: rgba(45, 52, 54, 0.22);
+            --border-soft: rgba(45, 52, 54, 0.32);
+
+            /* Text — darker for readability */
+            --text-bright: #1a1d1e;
+            --text-mid: #4a5256;
+            --text-dim: #8a9499;
+            --text-ghost: #c8cdd0;
 
             --font-display: 'Varela Round', sans-serif;
             --font-body: 'Nunito', sans-serif;
@@ -92,17 +105,14 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* ── Background: Subtle dot pattern ─────────────────────────────── */
+        /* ── Background: Subtle mint dot grid ────────────────────────────── */
         body::before {
             content: '';
             position: fixed;
             inset: 0;
-            /* Faint dotted background texture */
             background-image:
-                radial-gradient(circle, rgba(168, 230, 207, 0.2) 1px, transparent 1px),
-                radial-gradient(circle, rgba(255, 218, 193, 0.15) 1px, transparent 1px);
-            background-size: 32px 32px, 48px 48px;
-            background-position: 0 0, 16px 16px;
+                radial-gradient(circle, rgba(47, 188, 127, 0.08) 1px, transparent 1px);
+            background-size: 32px 32px;
             pointer-events: none;
             z-index: 0;
             opacity: 0.6;
@@ -111,13 +121,11 @@
         body::after {
             content: '';
             position: fixed;
-            top: -30vh;
-            left: -10vw;
-            width: 120vw;
-            height: 100vh;
-            /* Soft watercolor sunburst blending warm peach into pastel mint */
-            background: radial-gradient(ellipse at top right, rgba(255, 236, 210, 0.8) 0%, rgba(255, 218, 193, 0.3) 40%, transparent 70%),
-                radial-gradient(ellipse at bottom left, rgba(168, 230, 207, 0.4) 0%, transparent 60%);
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 40vh;
+            background: linear-gradient(180deg, rgba(47, 188, 127, 0.06) 0%, transparent 100%);
             pointer-events: none;
             z-index: -1;
         }
@@ -257,33 +265,33 @@
         }
 
         .node-supervisor {
-            background: rgba(184, 178, 208, 0.1);
+            background: var(--lav-glow);
             color: var(--lav);
-            border: 1px solid rgba(184, 178, 208, 0.22);
+            border: 1px solid var(--lav-dim);
         }
 
         .node-reason {
-            background: rgba(138, 174, 212, 0.1);
+            background: rgba(63, 175, 215, 0.10);
             color: var(--sky);
-            border: 1px solid rgba(138, 174, 212, 0.22);
+            border: 1px solid rgba(63, 175, 215, 0.30);
         }
 
         .node-execute {
             background: var(--sage-glow);
             color: var(--sage);
-            border: 1px solid rgba(139, 184, 154, 0.22);
+            border: 1px solid rgba(47, 188, 127, 0.30);
         }
 
         .node-hitl {
             background: var(--gold-glow);
             color: var(--gold);
-            border: 1px solid rgba(212, 192, 138, 0.25);
+            border: 1px solid var(--gold-dim);
         }
 
         .node-llm {
-            background: rgba(184, 178, 208, 0.08);
+            background: var(--lav-glow);
             color: var(--lav);
-            border: 1px solid rgba(184, 178, 208, 0.2);
+            border: 1px solid var(--lav-dim);
         }
 
         .node-unknown {
@@ -1069,8 +1077,8 @@
         }
 
         .msg-customer-bubble {
-            background: rgba(184, 178, 208, 0.10) !important;
-            border: 1px solid rgba(184, 178, 208, 0.25) !important;
+            background: var(--lav-glow) !important;
+            border: 1px solid var(--lav-dim) !important;
             border-radius: 1px var(--radius) var(--radius) var(--radius) !important;
         }
 
@@ -1163,7 +1171,7 @@
 
         .btn-ai-toggle.ai-on {
             background: var(--sage-glow);
-            border-color: rgba(139, 184, 154, 0.35);
+            border-color: rgba(47, 188, 127, 0.35);
             color: var(--sage);
         }
 
@@ -1178,7 +1186,7 @@
 
         .btn-ai-toggle.ai-on .ai-toggle-pip {
             background: var(--sage);
-            box-shadow: 0 0 6px rgba(139, 184, 154, 0.5);
+            box-shadow: 0 0 6px rgba(47, 188, 127, 0.5);
             animation: etherealpulse 2.5s ease-in-out infinite;
         }
 
@@ -1332,7 +1340,7 @@
 
         .ai-badge-on {
             background: var(--sage);
-            box-shadow: 0 0 5px rgba(139, 184, 154, 0.4);
+            box-shadow: 0 0 5px rgba(47, 188, 127, 0.4);
         }
 
         /* ── Inbox form ─────────────────────────────────────────────────── */
@@ -1408,7 +1416,7 @@
 
         .btn-inject {
             background: var(--lav-glow);
-            border: 1px solid rgba(184, 178, 208, 0.25);
+            border: 1px solid var(--lav-dim);
             color: var(--lav);
             font-family: var(--font-display);
             font-size: 8px;
@@ -1424,7 +1432,7 @@
         }
 
         .btn-inject:hover {
-            background: rgba(184, 178, 208, 0.14);
+            background: rgba(139, 126, 200, 0.14);
             border-color: var(--lav);
         }
 
@@ -1528,6 +1536,99 @@
                 transform: translateX(18px);
                 pointer-events: none;
             }
+        }
+
+        /* ── Order timeline ────────────────────────────────────────────── */
+        .order-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            padding-left: 4px;
+        }
+
+        .timeline-event {
+            display: grid;
+            grid-template-columns: 14px 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 0 12px;
+            min-height: 48px;
+        }
+
+        .timeline-dot {
+            grid-column: 1;
+            grid-row: 1;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid var(--border-mid);
+            background: var(--surface);
+            margin-top: 4px;
+            justify-self: center;
+            z-index: 1;
+        }
+
+        .timeline-dot-order_placed  { border-color: var(--sage); background: var(--sage-glow); }
+        .timeline-dot-status_changed { border-color: var(--gold); background: var(--gold-glow); }
+        .timeline-dot-order_lookup   { border-color: var(--sky); background: rgba(63, 175, 215, 0.12); }
+        .timeline-dot-refund_requested { border-color: var(--gold); background: var(--gold-glow); }
+        .timeline-dot-refund_approved  { border-color: var(--sage); background: var(--sage-glow); }
+        .timeline-dot-refund_rejected  { border-color: var(--rose); background: rgba(232, 92, 92, 0.10); }
+        .timeline-dot-refund_executed  { border-color: var(--sage); background: var(--sage-glow); }
+        .timeline-dot-outreach_triggered { border-color: var(--lav); background: var(--lav-glow); }
+
+        .timeline-line {
+            grid-column: 1;
+            grid-row: 2;
+            width: 2px;
+            background: var(--border-dim);
+            justify-self: center;
+            min-height: 16px;
+        }
+
+        .timeline-content {
+            grid-column: 2;
+            grid-row: 1 / 3;
+            padding-bottom: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timeline-type {
+            font-family: var(--font-display);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-bright);
+            letter-spacing: 0.04em;
+        }
+
+        .timeline-actor {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-dim);
+            background: var(--lift);
+            border: 1px solid var(--border-mist);
+            padding: 1px 5px;
+            border-radius: 2px;
+        }
+
+        .timeline-desc {
+            font-family: var(--font-body);
+            font-size: 12px;
+            color: var(--text-mid);
+            line-height: 1.5;
+        }
+
+        .timeline-time {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-dim);
         }
     </style>
 </head>

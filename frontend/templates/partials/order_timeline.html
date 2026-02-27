@@ -1,0 +1,63 @@
+<div style="flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:0;">
+    <!-- Back link -->
+    <div style="margin-bottom:12px;">
+        <button class="chip chip-outline" style="cursor:pointer; background:transparent; font-size:9px;"
+                hx-get="/orders" hx-target="#right-content" hx-swap="innerHTML">
+            &larr; All Orders
+        </button>
+    </div>
+
+    <!-- Order header -->
+    {% if order %}
+    <div style="margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border-mist);">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--text-bright);">
+                {{ order.order_id }}
+            </span>
+            {% if order.status == 'delayed' %}
+                <span class="chip chip-rose">{{ order.status }}</span>
+            {% elif order.status == 'delivered' %}
+                <span class="chip chip-sage">{{ order.status }}</span>
+            {% elif order.status == 'shipped' %}
+                <span class="chip chip-gold">{{ order.status }}</span>
+            {% elif order.status == 'cancelled' %}
+                <span class="chip chip-outline">{{ order.status }}</span>
+            {% else %}
+                <span class="chip chip-lav">{{ order.status }}</span>
+            {% endif %}
+        </div>
+        <div style="font-family:var(--font-body); font-size:13px; color:var(--text-mid); line-height:1.6;">
+            {{ order.customer_name }} &middot; {{ order.product_name }} x{{ order.item_count }}
+            &middot; ${{ "%.2f"|format(order.total_amount) }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Timeline -->
+    {% if events %}
+    <div class="order-timeline">
+        {% for event in events %}
+        <div class="timeline-event">
+            <div class="timeline-dot timeline-dot-{{ event.event_type }}"></div>
+            {% if not loop.last %}
+            <div class="timeline-line"></div>
+            {% endif %}
+            <div class="timeline-content">
+                <div class="timeline-header">
+                    <span class="timeline-type">{{ event.event_type | replace('_', ' ') | title }}</span>
+                    <span class="timeline-actor">{{ event.actor }}</span>
+                </div>
+                {% if event.description %}
+                <div class="timeline-desc">{{ event.description }}</div>
+                {% endif %}
+                <div class="timeline-time">{{ event.created_at[:19] | replace('T', ' ') }} UTC</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center; padding:28px; color:var(--text-dim); font-family:var(--font-body); font-size:13px; font-style:italic;">
+        No events recorded for this order.
+    </div>
+    {% endif %}
+</div>
