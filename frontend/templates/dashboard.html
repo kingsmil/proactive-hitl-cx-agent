@@ -214,6 +214,14 @@
                         <span id="queue-count" class="pane-tab-badge">{% if pending_count %}{{ pending_count }}
                             pending{% endif %}</span>
                     </button>
+                    <button class="pane-tab" id="tab-orders" hx-get="/orders" hx-target="#right-content"
+                        hx-swap="innerHTML" onclick="activatePaneTab(this)">
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;">
+                            <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.2" fill="none" />
+                            <path d="M5 6h6M5 8.5h4M5 11h2" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                        </svg>
+                        Orders
+                    </button>
                 </div>
             </div>
 

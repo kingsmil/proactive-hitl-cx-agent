@@ -1,0 +1,46 @@
+<div style="flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:4px;">
+    {% if orders %}
+        {% for order in orders %}
+        <div class="session-item"
+             hx-get="/orders/{{ order.order_id }}/timeline"
+             hx-target="#right-content"
+             hx-swap="innerHTML"
+             style="cursor:pointer;">
+            <div class="session-item-icon">
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+                    <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.2" fill="none" />
+                    <path d="M5 6h6M5 8.5h4M5 11h2" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                </svg>
+            </div>
+            <div class="session-item-body">
+                <div class="session-item-top">
+                    <span class="session-sigil-small">{{ order.order_id }}</span>
+                    {% if order.status == 'delayed' %}
+                        <span class="chip chip-rose">{{ order.status }}</span>
+                    {% elif order.status == 'delivered' %}
+                        <span class="chip chip-sage">{{ order.status }}</span>
+                    {% elif order.status == 'shipped' %}
+                        <span class="chip chip-gold">{{ order.status }}</span>
+                    {% elif order.status == 'cancelled' %}
+                        <span class="chip chip-outline">{{ order.status }}</span>
+                    {% else %}
+                        <span class="chip chip-lav">{{ order.status }}</span>
+                    {% endif %}
+                    {% if order.event_count %}
+                        <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-dim);">
+                            {{ order.event_count }} event{{ 's' if order.event_count != 1 else '' }}
+                        </span>
+                    {% endif %}
+                </div>
+                <div class="session-item-preview">
+                    {{ order.customer_name }} — {{ order.product_name }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div style="text-align:center; padding:28px; color:var(--text-dim); font-family:var(--font-body); font-size:13px; font-style:italic;">
+            No orders found.
+        </div>
+    {% endif %}
+</div>

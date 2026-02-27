@@ -144,6 +144,12 @@ async def _run_agent_body(session_id: str) -> None:
                         reasoning=msg.get("content") or "",
                         tool_call_id=tc["id"],
                     )
+                    if name == "issue_refund" and "order_id" in args:
+                        db.log_order_event(
+                            args["order_id"], "refund_requested",
+                            "Refund of ${:.2f} requested — awaiting approval".format(args.get("amount", 0)),
+                            actor="agent", session_id=session_id,
+                        )
                     db.set_session_status(session_id, db.PAUSED)
                     ack = get_ack_message(name, args)
                     db.append_message(session_id, "assistant", ack)

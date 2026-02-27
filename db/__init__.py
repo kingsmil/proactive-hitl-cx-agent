@@ -63,6 +63,15 @@ class PausedSessionUI(TypedDict):
     channel: str
     pending_action: PendingActionUI
 
+class OrderEventRow(TypedDict):
+    event_id: str
+    order_id: str
+    event_type: str
+    description: str
+    actor: str
+    session_id: str
+    created_at: str
+
 class SettingRow(TypedDict):
     key: str
     value: str
@@ -116,6 +125,16 @@ def init_db() -> None:
         CREATE TABLE IF NOT EXISTS settings (
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS order_events (
+            event_id    TEXT PRIMARY KEY,
+            order_id    TEXT NOT NULL,
+            event_type  TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            actor       TEXT NOT NULL DEFAULT 'system',
+            session_id  TEXT,
+            created_at  TEXT NOT NULL
         );
     """)
     conn.commit()
@@ -435,6 +454,52 @@ def mark_order_not_outreached(order_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Order event helpers
+# ---------------------------------------------------------------------------
+
+def log_order_event(
+    order_id: str,
+    event_type: str,
+    description: str = "",
+    actor: str = "system",
+    session_id: Optional[str] = None,
+) -> str:
+    event_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _conn()
+    conn.execute(
+        "INSERT INTO order_events "
+        "(event_id, order_id, event_type, description, actor, session_id, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (event_id, order_id, event_type, description, actor, session_id, now),
+    )
+    conn.commit()
+    return event_id
+
+
+def get_order_timeline(order_id: str) -> List[OrderEventRow]:
+    rows = _conn().execute(
+        "SELECT * FROM order_events WHERE order_id = ? ORDER BY created_at ASC",
+        (order_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_all_orders_with_event_count() -> list:
+    rows = _conn().execute(
+        """
+        SELECT o.*, COALESCE(e.cnt, 0) AS event_count
+        FROM orders o
+        LEFT JOIN (
+            SELECT order_id, COUNT(*) AS cnt FROM order_events GROUP BY order_id
+        ) e ON e.order_id = o.order_id
+        ORDER BY o.last_updated DESC
+        """
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
 # Seed data
 # ---------------------------------------------------------------------------
 
@@ -467,3 +532,27 @@ def seed_orders() -> None:
         orders,
     )
     conn.commit()
+    # Seed order events for each order (only if no events exist yet)
+    existing = conn.execute("SELECT COUNT(*) FROM order_events").fetchone()[0]
+    if existing == 0:
+        for o in orders:
+            oid, cname, _, pname, count, total, status, ts = o
+            placed_time = (now - timedelta(hours=96)).isoformat()
+            conn.execute(
+                "INSERT INTO order_events "
+                "(event_id, order_id, event_type, description, actor, session_id, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (str(uuid.uuid4()), oid, "order_placed",
+                 "{} x{} (${:.2f}) placed by {}".format(pname, count, total, cname),
+                 "system", None, placed_time),
+            )
+            if status != "processing":
+                conn.execute(
+                    "INSERT INTO order_events "
+                    "(event_id, order_id, event_type, description, actor, session_id, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (str(uuid.uuid4()), oid, "status_changed",
+                     "Status changed to '{}'".format(status),
+                     "system", None, ts),
+                )
+        conn.commit()

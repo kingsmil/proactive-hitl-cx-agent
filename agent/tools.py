@@ -32,6 +32,7 @@ def check_order_status(order_id: str, customer_phone: str) -> str:
         return "Order {} not found.".format(order_id)
     if row["customer_phone"] != customer_phone:
         return "Order {} not found or phone number does not match.".format(order_id)
+    db.log_order_event(order_id, "order_lookup", "Agent looked up order status", actor="agent")
     return (
         "Order {order_id}: customer='{customer_name}', "
         "product='{product_name}' x{item_count}, "
@@ -74,6 +75,11 @@ def issue_refund(order_id: str, amount: float, reason: str, customer_phone: str)
     if row["status"].lower() == "cancelled":
         return "Cannot issue refund: Order {} is already cancelled.".format(order_id)
         
+    db.log_order_event(
+        order_id, "refund_executed",
+        "Refund of ${:.2f} issued — reason: {}".format(amount, reason),
+        actor="agent",
+    )
     return "Refund of ${:.2f} issued for order {} — reason: {}.".format(
         amount, order_id, reason
     )

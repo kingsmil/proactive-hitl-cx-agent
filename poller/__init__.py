@@ -31,6 +31,11 @@ async def execute_task(task: dict) -> None:
     for order in stale_orders:
         # Mark before dispatching to prevent duplicate triggers on re-entry.
         db.mark_order_outreached(order["order_id"])
+        db.log_order_event(
+            order["order_id"], "outreach_triggered",
+            "Proactive outreach triggered by rule '{}'".format(task.get("task_id", "unknown")),
+            actor="poller",
+        )
 
         task_id = task.get("task_id", "unknown")
         sid = f"proactive-{task_id}-{order['order_id']}"
