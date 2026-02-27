@@ -188,7 +188,10 @@ class TestAppendMessageAndGetHistory(DBTestCase):
         db.get_or_create_session("sess-9")
         db.append_message("sess-9", "user", "hello")
         h = db.get_history("sess-9")
-        self.assertEqual(h, [{"role": "user", "content": "hello"}])
+        self.assertEqual(len(h), 1)
+        self.assertEqual(h[0]["role"], "user")
+        self.assertEqual(h[0]["content"], "hello")
+        self.assertIn("timestamp", h[0])
 
     def test_multiple_messages_preserve_order(self):
         db.get_or_create_session("sess-10")

@@ -131,3 +131,47 @@ async def toggle_ai(
             "ai_enabled": new_state,
         },
     )
+
+@router.get("/chat/{session_id}/event-log")
+def get_event_log(request: Request, session_id: str) -> HTMLResponse:
+    orders = db.get_session_orders(session_id)
+    events = []
+    seen_events = set()
+    for oid in orders:
+        order_events = db.get_order_timeline(oid)
+        for ev in order_events:
+            if ev["event_id"] not in seen_events:
+                events.append(ev)
+                seen_events.add(ev["event_id"])
+                
+    history = db.get_history(session_id)
+    session = db.get_session(session_id)
+    base_ts = session.get("created_at", "1970-01-01T00:00:00+00:00") if session else "1970-01-01T00:00:00+00:00"
+    
+    for i, msg in enumerate(history):
+        role = msg.get("role")
+        if role in ("user", "assistant"):
+            content = msg.get("content")
+            if not content:
+                continue
+            event_type = "user_message" if role == "user" else "agent_reply"
+            actor = "user" if role == "user" else ("operator" if msg.get("is_manual") else "agent")
+            ts = msg.get("timestamp") or base_ts
+            
+            # Map multiple orders visually, or just session.
+            first_order = list(orders)[0] if orders else "Session"
+            events.append({
+                "event_id": f"msg_{i}",
+                "order_id": first_order,
+                "event_type": event_type,
+                "description": content,
+                "actor": actor,
+                "created_at": ts
+            })
+    
+    events.sort(key=lambda e: e["created_at"])
+    
+    return templates.TemplateResponse(
+        "partials/event_log.html",
+        {"request": request, "session_id": session_id, "events": events}
+    )

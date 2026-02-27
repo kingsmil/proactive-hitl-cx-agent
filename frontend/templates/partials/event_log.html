@@ -1,0 +1,30 @@
+{% if events %}
+<div class="order-timeline" style="margin-top: 24px;">
+    {% for event in events %}
+    <div class="timeline-event">
+        <div class="timeline-dot timeline-dot-{{ event.event_type }}"></div>
+        {% if not loop.last %}
+        <div class="timeline-line"></div>
+        {% endif %}
+        <div class="timeline-content">
+            <div class="timeline-header">
+                <span class="timeline-type">{{ event.event_type | replace('_', ' ') | title }}</span>
+                <span class="timeline-actor">{{ event.actor }}</span>
+            </div>
+            {% if event.description %}
+            <div class="timeline-desc">
+                <strong style="color:var(--text-bright);">{{ event.order_id | default('Session') }}</strong>: {{
+                event.description }}
+            </div>
+            {% endif %}
+            <div class="timeline-time">{{ event.created_at[:19] | replace('T', ' ') }} UTC</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div
+    style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-dim); text-align:center; margin-top:28px; line-height:1.8;">
+    No historical events found.
+</div>
+{% endif %}

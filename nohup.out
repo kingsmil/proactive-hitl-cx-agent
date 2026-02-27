@@ -1,0 +1,48 @@
+INFO:     Will watch for changes in these directories: ['/Users/moethu/PycharmProjects/proactiveCRM/customerClaw']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [1314] using WatchFiles
+02:48:13 [DEBUG] tzlocal: /etc/localtime found
+02:48:13 [DEBUG] tzlocal: 1 found:
+ {'/etc/localtime is a symlink to': 'Asia/Singapore'}
+INFO:     Started server process [1376]
+INFO:     Waiting for application startup.
+ERROR:    Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/starlette/routing.py", line 694, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/moethu/PycharmProjects/proactiveCRM/customerClaw/api/app.py", line 15, in lifespan
+    db.init_db()
+  File "/Users/moethu/PycharmProjects/proactiveCRM/customerClaw/db/__init__.py", line 93, in init_db
+    conn = _conn()
+           ^^^^^^^
+  File "/Users/moethu/PycharmProjects/proactiveCRM/customerClaw/db/__init__.py", line 85, in _conn
+    _local.conn = sqlite3.connect(str(DB_PATH))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: unable to open database file
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'api/routes/chat.py'. Reloading...
+02:48:53 [DEBUG] tzlocal: /etc/localtime found
+02:48:53 [DEBUG] tzlocal: 1 found:
+ {'/etc/localtime is a symlink to': 'Asia/Singapore'}
+INFO:     Started server process [1752]
+INFO:     Waiting for application startup.
+ERROR:    Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/starlette/routing.py", line 694, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/moethu/PycharmProjects/proactiveCRM/customerClaw/api/app.py", line 15, in lifespan
+    db.init_db()
+  File "/Users/moethu/PycharmProjects/proactiveCRM/customerClaw/db/__init__.py", line 93, in init_db
+    conn = _conn()
+           ^^^^^^^
+  File "/Users/moethu/PycharmProjects/proactiveCRM/customerClaw/db/__init__.py", line 85, in _conn
+    _local.conn = sqlite3.connect(str(DB_PATH))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: unable to open database file
+
+ERROR:    Application startup failed. Exiting.

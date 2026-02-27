@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import uuid
+import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from threading import local
@@ -161,6 +162,7 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass  # Expected: column already exists after migration
     seed_orders()
+    seed_sessions()
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +237,8 @@ def append_message(session_id: str, role: str, content: str) -> None:
         "SELECT message_history FROM sessions WHERE session_id = ?", (session_id,)
     ).fetchone()
     history = json.loads(row["message_history"]) if row else []
-    history.append({"role": role, "content": content})
+    now = datetime.now(timezone.utc).isoformat()
+    history.append({"role": role, "content": content, "timestamp": now})
     conn.execute(
         "UPDATE sessions SET message_history = ? WHERE session_id = ?",
         (json.dumps(history), session_id),
@@ -250,6 +253,8 @@ def append_raw_message(session_id: str, message: dict) -> None:
         "SELECT message_history FROM sessions WHERE session_id = ?", (session_id,)
     ).fetchone()
     history = json.loads(row["message_history"]) if row else []
+    if "timestamp" not in message:
+        message["timestamp"] = datetime.now(timezone.utc).isoformat()
     history.append(message)
     conn.execute(
         "UPDATE sessions SET message_history = ? WHERE session_id = ?",
@@ -263,6 +268,30 @@ def get_history(session_id: str) -> List[Dict]:
         "SELECT message_history FROM sessions WHERE session_id = ?", (session_id,)
     ).fetchone()
     return json.loads(row["message_history"]) if row else []
+
+
+def get_session_orders(session_id: str) -> set:
+    """Return a set of order IDs associated with the session."""
+    orders = set()
+    for match in re.finditer(r'ORD-\d+', session_id):
+        orders.add(match.group())
+
+    for msg in get_history(session_id):
+        if "tool_calls" in msg:
+            for tc in msg.get("tool_calls", []):
+                try:
+                    args = json.loads(tc["function"]["arguments"])
+                    if "order_id" in args:
+                        orders.add(args["order_id"])
+                except Exception:
+                    pass
+
+    rows = _conn().execute(
+        "SELECT order_id FROM order_events WHERE session_id = ?", (session_id,)
+    ).fetchall()
+    for row in rows:
+        orders.add(row["order_id"])
+    return orders
 
 
 def get_all_sessions() -> List[SessionRow]:
@@ -302,7 +331,8 @@ def append_agent_message(session_id: str, content: str) -> None:
         "SELECT message_history FROM sessions WHERE session_id = ?", (session_id,)
     ).fetchone()
     history = json.loads(row["message_history"]) if row else []
-    history.append({"role": "assistant", "content": content, "is_manual": True})
+    now = datetime.now(timezone.utc).isoformat()
+    history.append({"role": "assistant", "content": content, "is_manual": True, "timestamp": now})
     conn.execute(
         "UPDATE sessions SET message_history = ? WHERE session_id = ?",
         (json.dumps(history), session_id),
@@ -559,3 +589,79 @@ def seed_orders() -> None:
                      "system", None, ts),
                 )
         conn.commit()
+
+
+def seed_sessions() -> None:
+    """Seed historical sessions into the database for demonstration purposes."""
+    conn = _conn()
+    existing = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+    if existing > 0:
+        return
+        
+    now = datetime.now(timezone.utc)
+    
+    # Create David Kim's demo session (ORD-004)
+    sid = "telegram:183779"
+    conn.execute(
+        "INSERT OR IGNORE INTO sessions "
+        "(session_id, status, channel, message_history, ai_enabled, created_at) "
+        "VALUES (?, 'RUNNING', 'telegram', '[]', 1, ?)",
+        (sid, (now - timedelta(hours=2)).isoformat()),
+    )
+    conn.commit()
+    
+    # We need to manually construct the history with custom timestamps
+    history = [
+        {
+            "role": "user",
+            "content": "Found 1 order(s): - ORD-004: David Kim - 'JOOLA Ben Johns Hyperion CFS 16mm' x1, $199.99, status=delayed",
+            "timestamp": (now - timedelta(minutes=115)).isoformat()
+        },
+        {
+            "role": "assistant",
+            "content": "Thanks, David! I see you have one order (ORD-004) for a Joola Scorpeus 16mm racket, currently **delayed**. Let me know how I can help—whether you'd like an update on the expected delivery, to discuss the delay, or need any other assistance.",
+            "timestamp": (now - timedelta(minutes=114)).isoformat()
+        },
+        {
+            "role": "user",
+            "content": "Refund please",
+            "timestamp": (now - timedelta(minutes=80)).isoformat()
+        },
+        {
+            "role": "user",
+            "content": "Order ORD-004: customer='David Kim', product='JOOLA Ben Johns Hyperion CFS 16mm' x1, total=$199.99, status='delayed', last updated 2026-02-16T18:06:17.",
+            "timestamp": (now - timedelta(minutes=79)).isoformat()
+        },
+        {
+            "role": "assistant",
+            "content": "We acknowledge your refund request for order ORD-004 and your reason for it (\"Customer requested refund due to delayed order\"). We will escalate this to an agent to help approve.",
+            "timestamp": (now - timedelta(minutes=78)).isoformat()
+        },
+        {
+            "role": "user",
+            "content": "Refund of $199.99 issued for order ORD-004 - reason: Customer requested refund due to delayed order.",
+            "timestamp": (now - timedelta(minutes=10)).isoformat()
+        },
+        {
+            "role": "assistant",
+            "content": "Your refund of **$199.99** for order **ORD-004** (JOOLA Ben Johns Hyperion CFS 16mm) has been processed and will be credited to your original payment method shortly. If you have any other questions, feel free to let me know!",
+            "timestamp": (now - timedelta(minutes=9)).isoformat()
+        }
+    ]
+    
+    conn.execute(
+        "UPDATE sessions SET message_history = ? WHERE session_id = ?",
+        (json.dumps(history), sid)
+    )
+    conn.commit()
+    
+    # Inject an event to tie it explicitly in the db if needed
+    conn.execute(
+        "INSERT INTO order_events "
+        "(event_id, order_id, event_type, description, actor, session_id, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (str(uuid.uuid4()), "ORD-004", "refund_issued",
+         "Refund of $199.99 issued - reason: Customer requested refund due to delayed order.",
+         "operator", sid, (now - timedelta(minutes=10)).isoformat()),
+    )
+    conn.commit()

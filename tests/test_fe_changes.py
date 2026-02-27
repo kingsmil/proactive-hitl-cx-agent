@@ -119,6 +119,13 @@ class TestSeedDataProducts(DBTestCase):
 
 class TestRootRedirectPriority(DBTestCase):
 
+    def setUp(self):
+        super().setUp()
+        # Empty seeded sessions so they don't corrupt the priority tests
+        conn = db._conn()
+        conn.execute("DELETE FROM sessions")
+        conn.commit()
+
     def _make_client(self):
         with patch("fastapi.staticfiles.StaticFiles.__init__", return_value=None):
             from fastapi.testclient import TestClient
