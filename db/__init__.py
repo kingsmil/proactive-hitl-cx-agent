@@ -167,6 +167,12 @@ def init_db() -> None:
     except sqlite3.OperationalError:
         pass
         
+    try:
+        conn.execute("ALTER TABLE order_events ADD COLUMN created_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+        
     seed_orders()
     seed_sessions()
 
