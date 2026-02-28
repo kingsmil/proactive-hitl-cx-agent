@@ -362,8 +362,8 @@ def get_session_orders(session_id: str) -> set:
                     args = json.loads(tc["function"]["arguments"])
                     if "order_id" in args:
                         orders.add(args["order_id"])
-                except Exception:
-                    pass
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass  # Malformed tool-call entry — skip safely
 
     rows = _conn().execute(
         "SELECT order_id FROM order_events WHERE session_id = ?", (session_id,)

@@ -17,13 +17,13 @@ async def _trigger_outreach_for_order(order: dict) -> str:
     db.get_or_create_session(sid, channel="proactive")
 
     synthetic_msg = (
-        "[System — Demo Outreach]\n"
+        "[System -- Demo Outreach]\n"
         "Instructions: The customer's order has been delayed. Reach out "
         "empathetically, provide a clear explanation, and proactively offer "
         "a 10% discount or refund as compensation. Keep the tone warm, "
         "professional, and concise.\n"
-        "Context: Order {order_id} for {customer_name} ({customer_phone}) — "
-        "product '{product_name}', total ${total_amount:.2f}, "
+        "Context: Order {order_id} for {customer_name} ({customer_phone}) "
+        "-- product '{product_name}', total ${total_amount:.2f}, "
         "status '{status}'."
     ).format(**order)
 
@@ -36,12 +36,8 @@ async def _trigger_outreach_for_order(order: dict) -> str:
 @router.post("/demo/trigger-outreach")
 async def demo_trigger_outreach(
     phone: str = Form(default=""),
-):
-    """Force-trigger the proactive outreach poller for demo purposes.
-
-    If a phone number is provided, only orders matching that phone are targeted.
-    Otherwise, all delayed orders are targeted.
-    """
+) -> JSONResponse:
+    """Force-trigger proactive outreach for delayed orders (demo use)."""
     filters = {"status": "delayed"}
     if phone.strip():
         filters["phone_prefix"] = phone.strip()
@@ -50,19 +46,32 @@ async def demo_trigger_outreach(
     all_orders = db.get_all_orders()
     for o in all_orders:
         if o["status"] == "delayed" and o.get("outreached", 0):
-            if not phone.strip() or o["customer_phone"].startswith(phone.strip()):
+            if (
+                not phone.strip()
+                or o["customer_phone"].startswith(phone.strip())
+            ):
                 db.mark_order_not_outreached(o["order_id"])
 
     orders = db.query_orders_by_filters(filters)
     if not orders:
-        return JSONResponse({"status": "no_orders", "message": "No delayed orders found matching filters."})
+        return JSONResponse({
+            "status": "no_orders",
+            "message": "No delayed orders found matching filters.",
+        })
 
     triggered = []
     for order in orders:
         db.mark_order_outreached(order["order_id"])
         sid = await _trigger_outreach_for_order(order)
-        triggered.append({"session_id": sid, "order_id": order["order_id"], "phone": order["customer_phone"]})
-        log.info("Demo outreach triggered for %s → session %s", order["order_id"], sid)
+        triggered.append({
+            "session_id": sid,
+            "order_id": order["order_id"],
+            "phone": order["customer_phone"],
+        })
+        log.info(
+            "Demo outreach triggered for %s -> session %s",
+            order["order_id"], sid,
+        )
 
     return JSONResponse({
         "status": "triggered",

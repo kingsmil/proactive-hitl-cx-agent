@@ -418,6 +418,71 @@ Clients (Web UI / Proactive Poller)
 
 ---
 
+## Order Status State Machine & Refund Rules
+
+### Status graph
+
+Orders follow a directed state graph. Only transitions defined in `ORDER_STATUS_GRAPH`
+(`db/__init__.py`) are legal. `cancelled` and `refunded` are terminal states.
+
+```
+processing ──► shipped ──► delivered ──► refunded
+    │              │            │
+    │              ▼            ▼
+    ├────────► cancelled    refunded
+    │
+    ▼
+  delayed ──► shipped
+    │            │
+    ├──► cancelled
+    └──► refunded
+```
+
+```python
+VALID_ORDER_STATUSES = {"processing", "delayed", "shipped", "delivered", "cancelled", "refunded"}
+
+ORDER_STATUS_GRAPH = {
+    "processing": {"shipped", "delayed", "cancelled", "refunded"},
+    "delayed":    {"shipped", "cancelled", "refunded"},
+    "shipped":    {"delivered", "cancelled", "refunded"},
+    "delivered":  {"refunded"},
+    "cancelled":  set(),   # terminal
+    "refunded":   set(),   # terminal
+}
+```
+
+### `update_order_status(order_id, new_status)`
+
+Enforces two checks before writing:
+1. **Allow list** — `new_status` must be in `VALID_ORDER_STATUSES` or `ValueError` is raised.
+2. **Graph edge** — the transition from current → target must exist in `ORDER_STATUS_GRAPH`
+   or `InvalidOrderTransition` is raised.
+
+### Refund validation (double-check pattern)
+
+`validate_refund(order_id, customer_phone)` in `agent/tools.py` returns `None` if the
+refund is allowed, or an error string explaining why it was rejected. It checks:
+- Order exists
+- Phone number matches
+- Current status allows transition to `refunded` (via the graph)
+
+This function is called at **two points**:
+1. **Pre-flight** (in the agent loop, before entering the HITL gate) — prevents
+   needless approval prompts for ineligible orders.
+2. **Approve-time** (in `/actions/approve`, after operator clicks Grant) — catches
+   TOCTOU races where the order state changed while awaiting approval. If validation
+   fails at approve-time, the system auto-rejects, logs a `refund_auto_rejected`
+   event, and re-enters the agent loop with the error.
+
+### `issue_refund` execution
+
+After operator approval, `issue_refund()` re-validates via `validate_refund()`,
+then calls `db.update_order_status(order_id, "refunded")` to transition the order.
+This ensures double-refunds are impossible — the second attempt sees status `refunded`
+(terminal) and is rejected.
+
+---
+
 ## Key Design Decisions
 
 - **No agent framework** — the orchestrator is a plain `while` loop.
