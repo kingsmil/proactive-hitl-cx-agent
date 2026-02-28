@@ -63,18 +63,47 @@ def list_orders(customer_phone: str, status: str = "", customer_name: str = "") 
     return "Found {} order(s):\n{}".format(len(all_orders), "\n".join(lines))
 
 
-def issue_refund(order_id: str, amount: float, reason: str, customer_phone: str) -> str:
-    """Stub — triggers the HITL gate; only executed after operator approval.
-    Validates the phone number matches the order and that the order is not cancelled.
+# ---------------------------------------------------------------------------
+# Refund validation rule engine (uses ORDER_STATUS_GRAPH)
+# ---------------------------------------------------------------------------
+
+
+def validate_refund(order_id: str, customer_phone: str) -> str | None:
+    """Validate whether a refund can be issued for the given order.
+
+    Uses the ORDER_STATUS_GRAPH from the DB layer to determine whether
+    the order's current status allows a transition to 'refunded'.
+
+    Returns None if the refund is allowed, or an error message string
+    explaining why it was rejected.  Called both at HITL-request time
+    (before pausing) and at execution time (after operator approval).
     """
     row = db.get_order(order_id)
     if row is None:
-        return "Cannot issue refund: Order {} not found.".format(order_id)
+        return "Order {} not found.".format(order_id)
     if row["customer_phone"] != customer_phone:
-        return "Cannot issue refund: Phone number does not match order {}.".format(order_id)
-    if row["status"].lower() == "cancelled":
-        return "Cannot issue refund: Order {} is already cancelled.".format(order_id)
-        
+        return "Phone number does not match order {}.".format(order_id)
+
+    status = row["status"].lower()
+    allowed = db.ORDER_STATUS_GRAPH.get(status, set())
+    if "refunded" not in allowed:
+        if status == "refunded":
+            return "Order {} has already been refunded.".format(order_id)
+        return "Order {} is '{}' and cannot be refunded.".format(order_id, status)
+    return None
+
+
+def issue_refund(order_id: str, amount: float, reason: str, customer_phone: str) -> str:
+    """Execute a refund after operator approval.
+
+    Re-validates the order state (it may have changed while the action
+    was waiting for approval) and marks the order as 'refunded'.
+    """
+    error = validate_refund(order_id, customer_phone)
+    if error:
+        return "Cannot issue refund: {}".format(error)
+
+    db.update_order_status(order_id, "refunded")
     db.log_order_event(
         order_id, "refund_executed",
         "Refund of ${:.2f} issued — reason: {}".format(amount, reason),

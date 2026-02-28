@@ -5,7 +5,7 @@ from markupsafe import escape
 
 import db
 from agent.llm_client import call_llm, call_llm_streaming
-from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS, get_ack_message, sanitize_json_fragment
+from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS, get_ack_message, sanitize_json_fragment, validate_refund
 from agent.sse_events import (
     thought_queues,
     stream_queues,
@@ -17,6 +17,7 @@ from agent.sse_events import (
     emit_chat_append,
     emit_stream_done,
     emit_stream_error,
+    render_queue_badge,
 )
 from agent.telegram_client import send_telegram_message
 
@@ -158,6 +159,24 @@ async def _run_agent_body(session_id: str) -> None:
                     })
 
                 elif name in HITL_TOOLS:
+                    # Pre-flight validation for refunds
+                    if name == "issue_refund":
+                        refund_error = validate_refund(
+                            args.get("order_id", ""),
+                            args.get("customer_phone", ""),
+                        )
+                        if refund_error:
+                            await emit_thought(
+                                session_id, "execute",
+                                "✗ {} rejected: {}".format(name, refund_error),
+                            )
+                            db.append_raw_message(session_id, {
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": "Cannot issue refund: {}".format(refund_error),
+                            })
+                            continue  # skip HITL gate, let LLM loop handle the error
+
                     await emit_thought(
                         session_id, "hitl",
                         "⚠ {} requires operator approval".format(name),
@@ -183,10 +202,7 @@ async def _run_agent_body(session_id: str) -> None:
                     # Streaming bubble IS in the DOM (session was RUNNING from the
                     # user's last message), so emit_stream_done correctly replaces it.
                     pending_count = len(db.get_all_paused_sessions())
-                    oob_badge = (
-                        '<span id="queue-count" hx-swap-oob="innerHTML">'
-                        "{} pending</span>"
-                    ).format(pending_count)
+                    oob_badge = render_queue_badge(pending_count)
                     await emit_stream_done(session_id, ack, oob_html=oob_badge)
                     await _dispatch_reply(session_id, ack)
                     return  # halt — agent re-entered via /actions/approve

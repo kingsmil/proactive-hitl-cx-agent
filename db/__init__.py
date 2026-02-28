@@ -13,6 +13,50 @@ PAUSED:  Literal["PAUSED"]  = "PAUSED"
 DONE:    Literal["DONE"]    = "DONE"
 SessionStatus = Literal["RUNNING", "PAUSED", "DONE"]
 
+# ---------------------------------------------------------------------------
+# Order status state machine (directed graph)
+# ---------------------------------------------------------------------------
+# Each key is a status, and its value is the set of statuses it can
+# transition TO.  Any transition not in this graph is illegal.
+#
+#   processing ──► shipped ──► delivered ──► refunded
+#       │              │            │
+#       │              ▼            ▼
+#       ├────────► cancelled    refunded
+#       │
+#       ▼
+#     delayed ──► shipped
+#       │
+#       ▼
+#     cancelled
+#
+VALID_ORDER_STATUSES: set[str] = {
+    "processing", "delayed", "shipped", "delivered", "cancelled", "refunded",
+}
+
+ORDER_STATUS_GRAPH: dict[str, set[str]] = {
+    "processing": {"shipped", "delayed", "cancelled", "refunded"},
+    "delayed":    {"shipped", "cancelled", "refunded"},
+    "shipped":    {"delivered", "cancelled", "refunded"},
+    "delivered":  {"refunded"},
+    "cancelled":  set(),       # terminal — no transitions allowed
+    "refunded":   set(),       # terminal — no transitions allowed
+}
+
+
+class InvalidOrderTransition(Exception):
+    """Raised when an order status transition is not allowed by the state graph."""
+    def __init__(self, order_id: str, from_status: str, to_status: str):
+        self.order_id = order_id
+        self.from_status = from_status
+        self.to_status = to_status
+        super().__init__(
+            "Order {}: cannot transition from '{}' to '{}'".format(
+                order_id, from_status, to_status
+            )
+        )
+
+
 DB_PATH = Path("data/claw.db")
 _local = local()
 
@@ -318,8 +362,8 @@ def get_session_orders(session_id: str) -> set:
                     args = json.loads(tc["function"]["arguments"])
                     if "order_id" in args:
                         orders.add(args["order_id"])
-                except Exception:
-                    pass
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass  # Malformed tool-call entry — skip safely
 
     rows = _conn().execute(
         "SELECT order_id FROM order_events WHERE session_id = ?", (session_id,)
@@ -503,6 +547,38 @@ def query_stale_delayed_orders(hours: int = 24) -> List[OrderRow]:
         (cutoff,),
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def update_order_status(order_id: str, new_status: str) -> None:
+    """Update an order's status, enforcing the ORDER_STATUS_GRAPH.
+
+    Raises ValueError if new_status is not in VALID_ORDER_STATUSES.
+    Raises InvalidOrderTransition if the transition is not allowed.
+    """
+    target = new_status.lower()
+    if target not in VALID_ORDER_STATUSES:
+        raise ValueError(
+            "Invalid order status '{}'. Must be one of: {}".format(
+                new_status, ", ".join(sorted(VALID_ORDER_STATUSES))
+            )
+        )
+
+    order = get_order(order_id)
+    if order is None:
+        raise ValueError("Order {} not found".format(order_id))
+
+    current = order["status"].lower()
+    allowed = ORDER_STATUS_GRAPH.get(current, set())
+    if target not in allowed:
+        raise InvalidOrderTransition(order_id, current, target)
+
+    conn = _conn()
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "UPDATE orders SET status = ?, last_updated = ? WHERE order_id = ?",
+        (target, now, order_id),
+    )
+    conn.commit()
 
 
 def mark_order_outreached(order_id: str) -> None:
