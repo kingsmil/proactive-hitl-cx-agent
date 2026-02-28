@@ -17,8 +17,7 @@
         height:100%; gap:10px; color:var(--text-dim); text-align:center; padding:24px;
     ">
     <div style="font-size:22px; opacity:0.3;">—</div>
-    <span
-        style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">No
+    <span style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">No
         messages yet</span>
     <span
         style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-ghost); line-height:1.7;">
@@ -31,8 +30,10 @@
 <div id="chat-stream-{{ session_id }}" hx-ext="sse" sse-connect="/chat/stream/{{ session_id }}"
     hx-get="/chat/{{ session_id }}/pane" hx-trigger="reload-chat-{{ session_id }} from:body"
     hx-target="#commune-content">
-    {% if is_running and history and history[-1].role == "user" and ai_on %}
-    <!-- Pending AI bubble — streams tokens via SSE -->
+    {% if is_running and ai_on %}
+    {% set last_role = history[-1].role if history else "" %}
+    {% if last_role == "user" %}
+    {# Last message is from user → agent is streaming a reply #}
     <div class="msg-agent msg-agent-right">
         <div class="msg-agent-body msg-agent-body-right" id="reply-body-{{ session_id }}">
             <div class="msg-agent-bubble pending">
@@ -44,8 +45,8 @@
         </div>
         <div class="msg-avatar">✧</div>
     </div>
-    {% elif is_running and ai_on %}
-    <!-- Processing indicator (post-HITL or tool execution) -->
+    {% elif last_role != "assistant" %}
+    {# Last role is tool/system result → agent is mid-loop, not yet replied #}
     <div class="msg-agent msg-agent-right">
         <div class="msg-agent-body msg-agent-body-right" id="reply-body-{{ session_id }}">
             <div class="msg-agent-bubble pending" style="opacity:0.7;">
@@ -57,6 +58,7 @@
         </div>
         <div class="msg-avatar">✧</div>
     </div>
+    {% endif %}
     {% endif %}
     <!-- Persistent listener — appends new messages (e.g. post-HITL responses) -->
     <div sse-swap="append" hx-swap="beforeend" hx-target="#commune-content" style="display:none;"></div>
@@ -73,10 +75,25 @@
 
 <!-- ── OOB: update #thought-connector to new session ── -->
 <div id="thought-connector" hx-ext="sse" sse-connect="/agent/thoughts/{{ session_id }}" sse-swap="message"
-    hx-target="#thought-log" hx-swap="beforeend scroll:#thought-log:bottom" hx-swap-oob="true">
+    hx-target="#event-timeline" hx-swap="afterbegin" hx-swap-oob="true">
     <div id="error-toast" sse-swap="error" hx-swap="innerHTML"></div>
 </div>
 
+<!-- ── OOB: reload event log for the new session ── -->
+<div id="thought-log" hx-swap-oob="true" hx-get="/chat/{{ session_id }}/event-log" hx-trigger="load"
+    hx-swap="innerHTML">
+    <div style="
+        font-family: var(--font-body);
+        font-style: italic;
+        font-size: 12px;
+        color: var(--text-dim);
+        text-align: center;
+        margin-top: 28px;
+        line-height: 1.8;
+    ">
+        Loading event log…
+    </div>
+</div>
 
 <!-- ── OOB: update session sigil in header ── -->
 <code id="current-session-sigil" hx-swap-oob="true">{{ session_id[-6:] }}</code>

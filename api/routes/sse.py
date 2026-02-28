@@ -8,10 +8,27 @@ from agent.sse_events import (
 
 router = APIRouter()
 
+
+def _drain_queue(queue: asyncio.Queue) -> None:
+    """Discard any items accumulated while no client was listening.
+
+    This prevents stale events from a previous agent run being dumped
+    at high speed when a new SSE connection is established (e.g. after
+    the user navigates back to a session).
+    """
+    while not queue.empty():
+        try:
+            queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+
+
 @router.get("/agent/thoughts/{session_id}")
 async def thought_stream(request: Request, session_id: str):
     _ensure_thought_queue(session_id)
     queue = thought_queues[session_id]
+    # Drain stale items accumulated while no client was connected
+    _drain_queue(queue)
 
     async def generator():
         while True:
@@ -29,10 +46,13 @@ async def thought_stream(request: Request, session_id: str):
 
     return EventSourceResponse(generator())
 
+
 @router.get("/chat/stream/{session_id}")
 async def chat_stream(request: Request, session_id: str):
     _ensure_stream_queue(session_id)
     queue = stream_queues[session_id]
+    # Drain stale items accumulated while no client was connected
+    _drain_queue(queue)
 
     async def generator():
         while True:
@@ -48,3 +68,4 @@ async def chat_stream(request: Request, session_id: str):
                 yield {"comment": "keepalive"}
 
     return EventSourceResponse(generator())
+

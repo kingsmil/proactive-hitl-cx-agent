@@ -4,6 +4,7 @@ from pathlib import Path
 from markupsafe import escape
 from jinja2 import Environment, FileSystemLoader
 from agent.tools import sanitize_json_fragment
+import db
 
 # ---------------------------------------------------------------------------
 # SSE thought queues — per-session asyncio.Queue, read by api/app.py
@@ -32,7 +33,8 @@ _jinja = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)))
 # ---------------------------------------------------------------------------
 
 async def emit_thought(session_id: str, node: str, preview: str) -> None:
-    """Render a thought_entry partial and push it into the SSE queue."""
+    """Render a thought_entry partial, push it into the SSE queue, and persist to DB."""
+    db.log_session_thought(session_id, node, preview)
     html = _jinja.get_template("partials/thought_entry.html").render(
         session_id=session_id, node=node, preview=preview
     )
@@ -46,7 +48,7 @@ async def emit_llm_thought(
     request_messages: list,
     response: dict,
 ) -> None:
-    """Render an expandable LLM call thought entry."""
+    """Render an expandable LLM call thought entry and persist summary to DB."""
     # Compact request summary — roles + truncated content
     req_lines = []
     for m in request_messages:
@@ -75,6 +77,14 @@ async def emit_llm_thought(
         resp_summary = "\n".join(resp_parts) if resp_parts else "(empty)"
     except (KeyError, IndexError):
         resp_summary = json.dumps(response, indent=2)[:500]
+
+    # Persist with details so the expandable view works on reload too
+    details = json.dumps({
+        "request_summary": req_summary,
+        "request_count": len(request_messages),
+        "response_summary": resp_summary,
+    })
+    db.log_session_thought(session_id, "llm", preview, details_json=details)
 
     html = _jinja.get_template("partials/thought_llm_entry.html").render(
         session_id=session_id,

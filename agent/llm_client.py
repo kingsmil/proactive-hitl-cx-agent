@@ -53,8 +53,8 @@ def _build_llm_endpoint_config():
     else:
         url     = OPENROUTER_URL
         model   = db.get_setting("model", DEFAULT_MODEL)
-        api_key = db.get_setting("openrouter_api_key",
-                                 os.environ.get("OPENROUTER_API_KEY", ""))
+        api_key = (db.get_setting("openrouter_api_key", "")
+                   or os.environ.get("OPENROUTER_API_KEY", ""))
         headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer {}".format(api_key),

@@ -14,9 +14,9 @@
         <div class="msg-agent-bubble{% if is_manual %} msg-manual{% endif %}">{{ content }}</div>
         <div class="msg-meta" style="text-align:right;">
             {% if is_manual %}
-                <span class="chip chip-gold" style="font-size:7px; padding:1px 5px;">[Agent]</span> CS Agent
+            <span class="chip chip-gold" style="font-size:7px; padding:1px 5px;">[Agent]</span> CS Agent
             {% else %}
-                <span class="chip chip-sage" style="font-size:7px; padding:1px 5px;">[AI]</span> CustomerClaw
+            <span class="chip chip-sage" style="font-size:7px; padding:1px 5px;">[AI]</span> CustomerClaw
             {% endif %}
         </div>
     </div>
@@ -25,19 +25,5 @@
     </div>
 </div>
 
-{% elif role == "tool" %}
-<!-- Tool result — compact chip -->
-<div style="display:flex; justify-content:center; margin:4px 0;">
-    <div style="
-        background: var(--lift);
-        border: 1px solid var(--border-mist);
-        border-radius: 2px;
-        padding: 4px 10px;
-        font-family: var(--font-mono);
-        font-size: 11px;
-        color: var(--text-dim);
-        max-width: 85%;
-        word-break: break-all;
-    ">⚙ {{ content }}</div>
-</div>
 {% endif %}
+{# role=tool and role=assistant w/ tool_calls are internal — shown in Event Log, not in chat #}

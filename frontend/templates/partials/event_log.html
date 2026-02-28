@@ -1,30 +1,79 @@
 {% if events %}
-<div class="order-timeline" style="margin-top: 24px;">
-    {% for event in events %}
-    <div class="timeline-event">
-        <div class="timeline-dot timeline-dot-{{ event.event_type }}"></div>
-        {% if not loop.last %}
-        <div class="timeline-line"></div>
-        {% endif %}
-        <div class="timeline-content">
-            <div class="timeline-header">
-                <span class="timeline-type">{{ event.event_type | replace('_', ' ') | title }}</span>
-                <span class="timeline-actor">{{ event.actor }}</span>
+<div class="event-timeline" id="event-timeline">
+    {% for event in events | reverse %}
+    {% set et = event.event_type %}
+    {# Determine dot color class #}
+    {% if et in ("order_placed", "outreach_triggered") %}
+    {% set dot = "dot-sage" %}
+    {% elif et in ("status_changed", "refund_requested", "user_message") %}
+    {% set dot = "dot-gold" %}
+    {% elif et in ("refund_approved", "refund_executed", "agent_reply") %}
+    {% set dot = "dot-sage" %}
+    {% elif et in ("refund_rejected",) %}
+    {% set dot = "dot-rose" %}
+    {% elif et in ("order_lookup", "tool_result", "reason") %}
+    {% set dot = "dot-sky" %}
+    {% elif et in ("tool_call", "execute") %}
+    {% set dot = "dot-sky" %}
+    {% elif et in ("hitl",) %}
+    {% set dot = "dot-gold" %}
+    {% elif et in ("supervisor", "llm") %}
+    {% set dot = "dot-lav" %}
+    {% else %}
+    {% set dot = "dot-dim" %}
+    {% endif %}
+
+    <div class="etl-row">
+        <div class="etl-spine">
+            <div class="etl-dot {{ dot }}"></div>
+            <div class="etl-line"></div>
+        </div>
+        <div class="etl-body">
+            <div class="etl-header">
+                <span class="etl-type">{{ et | replace('_', ' ') | title }}</span>
+                {% if event.actor %}
+                <span class="etl-actor">{{ event.actor }}</span>
+                {% endif %}
+                {% if event.order_id and event.order_id != "Session" %}
+                <span class="etl-order">{{ event.order_id }}</span>
+                {% endif %}
             </div>
-            {% if event.description %}
-            <div class="timeline-desc">
-                <strong style="color:var(--text-bright);">{{ event.order_id | default('Session') }}</strong>: {{
-                event.description }}
-            </div>
+            {% if et == "llm" and event.details %}
+            <details class="etl-expand">
+                <summary class="etl-expand-summary">
+                    <span class="etl-desc">{{ event.description }}</span>
+                    <span class="etl-expand-arrow">▸ details</span>
+                </summary>
+                <div class="etl-expand-body">
+                    {% if event.details.request_summary %}
+                    <div class="thought-section">
+                        <div class="thought-section-label">Request · {{ event.details.request_count }} messages</div>
+                        <pre class="thought-code">{{ event.details.request_summary }}</pre>
+                    </div>
+                    {% endif %}
+                    {% if event.details.response_summary %}
+                    <div class="thought-section">
+                        <div class="thought-section-label">Response</div>
+                        <pre class="thought-code">{{ event.details.response_summary }}</pre>
+                    </div>
+                    {% endif %}
+                </div>
+            </details>
+            {% else %}
+            <div class="etl-desc">{{ event.description }}</div>
             {% endif %}
-            <div class="timeline-time">{{ event.created_at[:19] | replace('T', ' ') }} UTC</div>
+            {% if event.created_at %}
+            <div class="etl-ts">{{ event.created_at[:19] | replace("T", " ") }} UTC</div>
+            {% endif %}
         </div>
     </div>
     {% endfor %}
 </div>
 {% else %}
-<div
-    style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-dim); text-align:center; margin-top:28px; line-height:1.8;">
-    No historical events found.
+<div class="event-timeline" id="event-timeline">
+    <div
+        style="font-family:var(--font-body); font-style:italic; font-size:12px; color:var(--text-dim); text-align:center; margin-top:32px; line-height:1.8; width:100%;">
+        No events yet.
+    </div>
 </div>
 {% endif %}

@@ -16,46 +16,50 @@ from agent.sse_events import (
     emit_error,
     emit_chat_append,
     emit_stream_done,
-    emit_stream_error
+    emit_stream_error,
 )
 from agent.telegram_client import send_telegram_message
 
 log = logging.getLogger("agent")
 
 # ---------------------------------------------------------------------------
-# Locks
+# Locks — one asyncio.Lock per session
 # ---------------------------------------------------------------------------
 
-_agent_locks = {}   # dict[str, asyncio.Lock] — one lock per session
+_agent_locks: dict[str, asyncio.Lock] = {}
 
-def _push_streamed_token_to_browser(session_id: str, token: str, loop: asyncio.AbstractEventLoop = None):
+
+def _push_streamed_token_to_browser(
+    session_id: str,
+    token: str,
+    loop: asyncio.AbstractEventLoop | None = None,
+) -> None:
     """HTML-escape a token and push it into the SSE stream queue."""
     token_html = str(escape(token))
     if loop:
-        loop.call_soon_threadsafe(
-            stream_queues[session_id].put_nowait, token_html
-        )
+        loop.call_soon_threadsafe(stream_queues[session_id].put_nowait, token_html)
     else:
         stream_queues[session_id].put_nowait(token_html)
 
 
 async def _dispatch_reply(session_id: str, content: str) -> None:
-    """Deliver a completed agent reply to any non-SSE channel sinks (e.g. Telegram)."""
+    """Deliver a completed agent reply to non-SSE channel sinks (e.g. Telegram)."""
     sess = db.get_session(session_id)
     if sess and sess.get("channel") == "telegram":
         await send_telegram_message(session_id, content)
 
+
 # ---------------------------------------------------------------------------
-# Orchestrator loop
+# Orchestrator entry-point
 # ---------------------------------------------------------------------------
 
 async def run_agent(session_id: str) -> None:
-    # ── Guard: only one loop per session at a time ───────────────────────────
+    """Start (or re-enter) the agent loop for a session, guarded by a per-session lock."""
     if session_id not in _agent_locks:
         _agent_locks[session_id] = asyncio.Lock()
     lock = _agent_locks[session_id]
     if lock.locked():
-        return  # another coroutine is already running this session — drop silently
+        return  # another coroutine is already running — drop silently
     async with lock:
         await _run_agent_locked(session_id)
 
@@ -66,16 +70,23 @@ async def _run_agent_locked(session_id: str) -> None:
     try:
         await _run_agent_body(session_id)
     except Exception as exc:
-        log.error("Agent loop crashed for session %s: %s", session_id, exc, exc_info=True)
+        log.error("Agent loop crashed for %s: %s", session_id, exc, exc_info=True)
         await emit_error(session_id, str(exc))
         await emit_stream_error(session_id)
         db.set_session_status(session_id, db.DONE)
 
 
 async def _run_agent_body(session_id: str) -> None:
-    # ── Phase A: resume from an approved HITL action ────────────────────────
+    # ── Phase A: resume from an approved HITL action ──────────────────────────
+    #
+    # `from_hitl` remembers that the streaming bubble was already consumed by the
+    # HITL ack message.  After approval the DOM has no #reply-body-{session_id},
+    # so the final reply must use emit_chat_append (full bubble) rather than
+    # emit_stream_done (which targets the non-existent placeholder).
+    from_hitl = False
     pending = db.get_pending_action(session_id)
     if pending:
+        from_hitl = True
         await emit_thought(
             session_id, "execute",
             "→ {} (approved by operator)".format(pending["tool_name"]),
@@ -88,37 +99,49 @@ async def _run_agent_body(session_id: str) -> None:
         })
         db.delete_pending_action(session_id)
 
-    # ── Phase B: main loop ───────────────────────────────────────────────────
+    # ── Phase B: main LLM loop ────────────────────────────────────────────────
+    #
+    # `_suppress_stream` controls whether token chunks are pushed to the browser:
+    #   • True  when from_hitl (no streaming bubble in DOM)
+    #   • True  during intermediate tool-call passes (garbled tokens would appear)
+    #   • False for the final stop-reply pass (chunks appear live in the bubble)
+    #
+    # We use a default-arg trick in push_chunk so the closure captures a *copy*
+    # of the flag value at the time the function is defined each iteration,
+    # rather than binding to the outer variable by reference.
+    _suppress_stream = from_hitl
+
     while db.get_session(session_id)["status"] == db.RUNNING:
         history = db.get_history(session_id)
         await emit_thought(session_id, "supervisor", "Evaluating conversation…")
 
         loop = asyncio.get_running_loop()
 
-        def push_chunk(token: str):
-            _push_streamed_token_to_browser(session_id, token, loop)
+        def push_chunk(token: str, _go: bool = not _suppress_stream) -> None:
+            if _go:
+                _push_streamed_token_to_browser(session_id, token, loop)
 
-        response = await asyncio.to_thread(
-            call_llm_streaming, history, TOOLS, push_chunk
-        )
+        response = await asyncio.to_thread(call_llm_streaming, history, TOOLS, push_chunk)
 
         choice = response["choices"][0]
         msg = choice["message"]
         finish_reason = choice["finish_reason"]
 
-        # Emit expandable LLM call details to the Scrying Glass
         llm_preview = "LLM → {}".format(
             "tool_calls" if finish_reason == "tool_calls" else "reply"
         )
         await emit_llm_thought(session_id, llm_preview, history, response)
 
         if finish_reason == "tool_calls":
-            # Store the full assistant message so tool results can reference it
             db.append_raw_message(session_id, {
                 "role": "assistant",
                 "content": msg.get("content"),
                 "tool_calls": msg["tool_calls"],
             })
+
+            # Suppress streaming on this intermediate pass; re-enable afterwards
+            # so the NEXT pass (the final stop-reply) streams tokens live.
+            _suppress_stream = True
 
             for tc in msg["tool_calls"]:
                 name = tc["function"]["name"]
@@ -157,20 +180,28 @@ async def _run_agent_body(session_id: str) -> None:
                     db.set_session_status(session_id, db.PAUSED)
                     ack = get_ack_message(name, args)
                     db.append_message(session_id, "assistant", ack)
-                    # Push badge count to Seals tab via OOB swap
+                    # Streaming bubble IS in the DOM (session was RUNNING from the
+                    # user's last message), so emit_stream_done correctly replaces it.
                     pending_count = len(db.get_all_paused_sessions())
                     oob_badge = (
                         '<span id="queue-count" hx-swap-oob="innerHTML">'
-                        '{} pending</span>'
+                        "{} pending</span>"
                     ).format(pending_count)
                     await emit_stream_done(session_id, ack, oob_html=oob_badge)
                     await _dispatch_reply(session_id, ack)
-                    return  # halt — resumed via /actions/approve
+                    return  # halt — agent re-entered via /actions/approve
+
 
         else:  # finish_reason == "stop"
             await emit_thought(session_id, "reason", "Composing reply…")
             db.append_message(session_id, "assistant", msg["content"])
-            await emit_stream_done(session_id, msg["content"])
+            if from_hitl:
+                # Post-HITL: streaming bubble was already replaced by the ack.
+                # Append a fresh complete bubble to commune-content instead.
+                await emit_chat_append(session_id, msg["content"])
+            else:
+                # Normal flow: replace the streaming placeholder with the final reply.
+                await emit_stream_done(session_id, msg["content"])
             await _dispatch_reply(session_id, msg["content"])
             db.set_session_status(session_id, db.DONE)
             return

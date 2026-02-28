@@ -26,18 +26,3 @@
 
 <!-- Real-time queue count badge update -->
 <span id="queue-count" hx-swap-oob="innerHTML">{{ pending_count }} pending</span>
-
-<!-- Append processing bubble to chat pane seamlessly -->
-<div id="chat-stream-{{ session_id }}" hx-swap-oob="beforeend">
-    <div class="msg-agent msg-agent-right">
-        <div class="msg-agent-body msg-agent-body-right" id="reply-body-{{ session_id }}">
-            <div class="msg-agent-bubble pending" style="opacity:0.7;">
-                <span class="pending-orbs"><span></span><span></span><span></span></span>
-                <span style="font-family:var(--font-body); font-style:italic; font-size:13px;">processing…</span>
-            </div>
-            <div class="msg-meta" style="text-align:right; color:var(--gold-dim);">processing</div>
-            <div sse-swap="done" hx-swap="innerHTML" hx-target="#reply-body-{{ session_id }}"></div>
-        </div>
-        <div class="msg-avatar">✧</div>
-    </div>
-</div>

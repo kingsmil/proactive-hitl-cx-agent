@@ -1567,14 +1567,93 @@
             z-index: 1;
         }
 
-        .timeline-dot-order_placed  { border-color: var(--sage); background: var(--sage-glow); }
-        .timeline-dot-status_changed { border-color: var(--gold); background: var(--gold-glow); }
-        .timeline-dot-order_lookup   { border-color: var(--sky); background: rgba(63, 175, 215, 0.12); }
-        .timeline-dot-refund_requested { border-color: var(--gold); background: var(--gold-glow); }
-        .timeline-dot-refund_approved  { border-color: var(--sage); background: var(--sage-glow); }
-        .timeline-dot-refund_rejected  { border-color: var(--rose); background: rgba(232, 92, 92, 0.10); }
-        .timeline-dot-refund_executed  { border-color: var(--sage); background: var(--sage-glow); }
-        .timeline-dot-outreach_triggered { border-color: var(--lav); background: var(--lav-glow); }
+        .timeline-dot-order_placed {
+            border-color: var(--sage);
+            background: var(--sage-glow);
+        }
+
+        .timeline-dot-status_changed {
+            border-color: var(--gold);
+            background: var(--gold-glow);
+        }
+
+        .timeline-dot-order_lookup {
+            border-color: var(--sky);
+            background: rgba(63, 175, 215, 0.12);
+        }
+
+        .timeline-dot-refund_requested {
+            border-color: var(--gold);
+            background: var(--gold-glow);
+        }
+
+        .timeline-dot-refund_approved {
+            border-color: var(--sage);
+            background: var(--sage-glow);
+        }
+
+        .timeline-dot-refund_rejected {
+            border-color: var(--rose);
+            background: rgba(232, 92, 92, 0.10);
+        }
+
+        .timeline-dot-refund_executed {
+            border-color: var(--sage);
+            background: var(--sage-glow);
+        }
+
+        .timeline-dot-outreach_triggered {
+            border-color: var(--lav);
+            background: var(--lav-glow);
+        }
+
+        /* message events */
+        .timeline-dot-user_message {
+            border-color: var(--gold);
+            background: var(--gold-glow);
+        }
+
+        .timeline-dot-agent_reply {
+            border-color: var(--sage);
+            background: var(--sage-glow);
+        }
+
+        /* tool events */
+        .timeline-dot-tool_call {
+            border-color: var(--sky);
+            background: rgba(63, 175, 215, 0.12);
+        }
+
+        .timeline-dot-tool_result {
+            border-color: var(--border-mid);
+            background: var(--surface);
+        }
+
+        /* agent thought nodes */
+        .timeline-dot-supervisor {
+            border-color: var(--lav);
+            background: var(--lav-glow);
+        }
+
+        .timeline-dot-execute {
+            border-color: var(--sage);
+            background: var(--sage-glow);
+        }
+
+        .timeline-dot-hitl {
+            border-color: var(--gold);
+            background: var(--gold-glow);
+        }
+
+        .timeline-dot-llm {
+            border-color: var(--lav);
+            background: var(--lav-glow);
+        }
+
+        .timeline-dot-reason {
+            border-color: var(--sky);
+            background: rgba(63, 175, 215, 0.12);
+        }
 
         .timeline-line {
             grid-column: 1;
@@ -1629,6 +1708,179 @@
             font-family: var(--font-mono);
             font-size: 10px;
             color: var(--text-dim);
+        }
+
+        /* ── Event Log Timeline (etl) ─────────────────────────────────────── */
+        #thought-log {
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .event-timeline {
+            padding: 12px 14px 6px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .etl-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .etl-spine {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+            width: 12px;
+        }
+
+        .etl-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid var(--border-mid);
+            background: var(--surface);
+            flex-shrink: 0;
+            margin-top: 4px;
+            z-index: 1;
+        }
+
+        .etl-line {
+            width: 2px;
+            flex: 1;
+            min-height: 12px;
+            background: var(--border-dim);
+            margin-top: 2px;
+        }
+
+        .etl-row:last-child .etl-line {
+            display: none;
+        }
+
+        /* dot color variants */
+        .dot-sage {
+            border-color: var(--sage);
+            background: var(--sage-glow);
+        }
+
+        .dot-gold {
+            border-color: var(--gold);
+            background: var(--gold-glow);
+        }
+
+        .dot-rose {
+            border-color: var(--rose);
+            background: rgba(232, 92, 92, 0.10);
+        }
+
+        .dot-sky {
+            border-color: var(--sky);
+            background: rgba(63, 175, 215, 0.12);
+        }
+
+        .dot-lav {
+            border-color: var(--lav);
+            background: var(--lav-glow);
+        }
+
+        .dot-dim {
+            border-color: var(--border-mid);
+            background: var(--surface);
+        }
+
+        .etl-body {
+            flex: 1;
+            min-width: 0;
+            padding-bottom: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .etl-header {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            flex-wrap: wrap;
+        }
+
+        .etl-type {
+            font-family: var(--font-display);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-bright);
+            letter-spacing: 0.04em;
+        }
+
+        .etl-actor {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-dim);
+            background: var(--lift);
+            border: 1px solid var(--border-mist);
+            border-radius: 2px;
+            padding: 1px 5px;
+        }
+
+        .etl-order {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--gold-dim);
+            letter-spacing: 0.05em;
+        }
+
+        .etl-desc {
+            font-family: var(--font-body);
+            font-size: 12px;
+            color: var(--text-mid);
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .etl-ts {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-dim);
+        }
+
+        .etl-expand {
+            margin: 0;
+        }
+
+        .etl-expand-summary {
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .etl-expand-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .etl-expand-arrow {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--lav-dim);
+            flex-shrink: 0;
+            transition: color 0.15s;
+        }
+
+        .etl-expand-summary:hover .etl-expand-arrow {
+            color: var(--lav);
+        }
+
+        .etl-expand[open] .etl-expand-arrow {
+            color: var(--lav);
+        }
+
+        .etl-expand-body {
+            margin-top: 6px;
+            padding-left: 4px;
+            border-left: 2px solid var(--border-mist);
         }
     </style>
 </head>

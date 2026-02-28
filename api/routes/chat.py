@@ -134,6 +134,7 @@ async def toggle_ai(
 
 @router.get("/chat/{session_id}/event-log")
 def get_event_log(request: Request, session_id: str) -> HTMLResponse:
+    import json as _json
     orders = db.get_session_orders(session_id)
     events = []
     seen_events = set()
@@ -143,35 +144,83 @@ def get_event_log(request: Request, session_id: str) -> HTMLResponse:
             if ev["event_id"] not in seen_events:
                 events.append(ev)
                 seen_events.add(ev["event_id"])
-                
+
     history = db.get_history(session_id)
     session = db.get_session(session_id)
     base_ts = session.get("created_at", "1970-01-01T00:00:00+00:00") if session else "1970-01-01T00:00:00+00:00"
-    
+    first_order = list(orders)[0] if orders else "Session"
+
     for i, msg in enumerate(history):
         role = msg.get("role")
+        ts = msg.get("timestamp") or base_ts
+
         if role in ("user", "assistant"):
             content = msg.get("content")
-            if not content:
-                continue
-            event_type = "user_message" if role == "user" else "agent_reply"
-            actor = "user" if role == "user" else ("operator" if msg.get("is_manual") else "agent")
-            ts = msg.get("timestamp") or base_ts
-            
-            # Map multiple orders visually, or just session.
-            first_order = list(orders)[0] if orders else "Session"
-            events.append({
-                "event_id": f"msg_{i}",
-                "order_id": first_order,
-                "event_type": event_type,
-                "description": content,
-                "actor": actor,
-                "created_at": ts
-            })
-    
+            if content:
+                event_type = "user_message" if role == "user" else "agent_reply"
+                actor = "user" if role == "user" else ("operator" if msg.get("is_manual") else "agent")
+                events.append({
+                    "event_id": f"msg_{i}",
+                    "order_id": first_order,
+                    "event_type": event_type,
+                    "description": content,
+                    "actor": actor,
+                    "created_at": ts,
+                })
+
+            # Surface tool_calls as individual events
+            for j, tc in enumerate(msg.get("tool_calls") or []):
+                try:
+                    fn = tc.get("function", {})
+                    name = fn.get("name", "unknown_tool")
+                    raw_args = fn.get("arguments", "{}")
+                    args = _json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    args_summary = ", ".join(
+                        f"{k}={repr(v)[:60]}" for k, v in args.items()
+                    )
+                    events.append({
+                        "event_id": f"tc_{i}_{j}",
+                        "order_id": args.get("order_id", first_order),
+                        "event_type": "tool_call",
+                        "description": f"{name}({args_summary})",
+                        "actor": "agent",
+                        "created_at": ts,
+                    })
+                except Exception:
+                    pass
+
+        elif role == "tool":
+            content = msg.get("content", "")
+            if content:
+                events.append({
+                    "event_id": f"tr_{i}",
+                    "order_id": first_order,
+                    "event_type": "tool_result",
+                    "description": str(content)[:200] + ("…" if len(str(content)) > 200 else ""),
+                    "actor": "system",
+                    "created_at": ts,
+                })
+
+    # Include persisted agent thoughts (supervisor/execute/hitl/llm nodes)
+    thoughts = db.get_session_thoughts(session_id)
+    for thought in thoughts:
+        ev = {
+            "event_id": thought["thought_id"],
+            "order_id": "Session",
+            "event_type": thought["node"],
+            "description": thought["preview"],
+            "actor": "agent",
+            "created_at": thought["created_at"],
+        }
+        if thought.get("details"):
+            ev["details"] = thought["details"]
+        events.append(ev)
+
     events.sort(key=lambda e: e["created_at"])
-    
+
     return templates.TemplateResponse(
         "partials/event_log.html",
         {"request": request, "session_id": session_id, "events": events}
     )
+
+

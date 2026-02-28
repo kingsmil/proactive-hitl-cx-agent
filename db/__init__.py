@@ -73,6 +73,14 @@ class OrderEventRow(TypedDict):
     session_id: str
     created_at: str
 
+class SessionThoughtRow(TypedDict):
+    thought_id: str
+    session_id: str
+    node: str
+    preview: str
+    details_json: str   # JSON string with LLM request/response details (or empty)
+    created_at: str
+
 class SettingRow(TypedDict):
     key: str
     value: str
@@ -137,6 +145,15 @@ def init_db() -> None:
             session_id  TEXT,
             created_at  TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS session_thoughts (
+            thought_id  TEXT PRIMARY KEY,
+            session_id  TEXT NOT NULL,
+            node        TEXT NOT NULL,
+            preview     TEXT NOT NULL DEFAULT '',
+            details_json TEXT NOT NULL DEFAULT '',
+            created_at  TEXT NOT NULL
+        );
     """)
     conn.commit()
     # Migration: add ai_enabled column for existing databases
@@ -172,7 +189,13 @@ def init_db() -> None:
         conn.commit()
     except sqlite3.OperationalError:
         pass
-        
+    # Migration: add details_json to session_thoughts
+    try:
+        conn.execute("ALTER TABLE session_thoughts ADD COLUMN details_json TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
     seed_orders()
     seed_sessions()
 
@@ -528,6 +551,41 @@ def get_order_timeline(order_id: str) -> List[OrderEventRow]:
     ).fetchall()
     return [dict(row) for row in rows]
 
+
+def log_session_thought(session_id: str, node: str, preview: str, details_json: str = "") -> str:
+    """Persist an agent thought entry to the session_thoughts table."""
+    thought_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _conn()
+    conn.execute(
+        "INSERT INTO session_thoughts (thought_id, session_id, node, preview, details_json, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (thought_id, session_id, node, preview, details_json, now),
+    )
+    conn.commit()
+    return thought_id
+
+
+def get_session_thoughts(session_id: str) -> List[Dict]:
+    """Return all persisted thought entries for a session, oldest first."""
+    rows = _conn().execute(
+        "SELECT * FROM session_thoughts WHERE session_id = ? ORDER BY created_at ASC",
+        (session_id,),
+    ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        # Parse details_json back into a dict for template rendering
+        raw = d.get("details_json", "")
+        if raw:
+            try:
+                d["details"] = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                d["details"] = None
+        else:
+            d["details"] = None
+        result.append(d)
+    return result
 
 def get_all_orders_with_event_count() -> List[Dict]:
     """Return all orders natively ordered, joined with a total event count."""

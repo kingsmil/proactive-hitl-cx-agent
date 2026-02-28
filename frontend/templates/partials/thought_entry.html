@@ -1,5 +1,20 @@
-<div class="thought-entry">
-    <code class="thought-sigil" title="{{ session_id }}">{{ session_id[-6:] }}</code>
-    <span class="node-tag node-{{ node }}">{{ node }}</span>
-    <span class="thought-text">{{ preview }}</span>
+{# Live SSE thought entry — etl-row format matches the persisted event log timeline #}
+{% if node == "supervisor" %}{% set dot = "dot-lav" %}
+{% elif node == "execute" %}{% set dot = "dot-sage" %}
+{% elif node == "hitl" %}{% set dot = "dot-gold" %}
+{% elif node == "reason" %}{% set dot = "dot-sky" %}
+{% elif node == "llm" %}{% set dot = "dot-lav" %}
+{% else %}{% set dot = "dot-dim" %}{% endif %}
+<div class="etl-row">
+    <div class="etl-spine">
+        <div class="etl-dot {{ dot }}"></div>
+        <div class="etl-line"></div>
+    </div>
+    <div class="etl-body">
+        <div class="etl-header">
+            <span class="etl-type">{{ node | title }}</span>
+            <span class="etl-actor">agent</span>
+        </div>
+        <div class="etl-desc">{{ preview }}</div>
+    </div>
 </div>
