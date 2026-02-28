@@ -428,3 +428,131 @@ Clients (Web UI / Proactive Poller)
   `OPENROUTER_API_KEY`. Default model `anthropic/claude-3.5-haiku`; swap to
   `anthropic/claude-3.5-sonnet` for higher quality. Tool-use uses the standard
   OpenAI function-calling format (`finish_reason == "tool_calls"`).
+
+---
+
+## Unified Event Log Architecture
+
+The Event Log panel (right pane, `#thought-log`) uses a **dual-path rendering
+system** — live SSE events during an agent run and persisted DB events on reload
+— that converge into a single `etl-row` timeline format.
+
+### Data Flow
+
+```
+                         ┌─────────────────────────────────┐
+                         │       Agent Orchestrator        │
+                         │       (agent/__init__.py)       │
+                         └──────┬──────────────┬───────────┘
+                                │              │
+                    emit_thought()       emit_llm_thought()
+                    emit_error()         emit_stream_done()
+                                │              │
+                    ┌───────────▼──────────────▼───────────┐
+                    │         sse_events.py                │
+                    │  1. Persist to DB (session_thoughts) │
+                    │  2. Render HTML partial               │
+                    │  3. Push to SSE queue                 │
+                    └──────┬────────────────────┬──────────┘
+                           │                    │
+            ┌──────────────▼─────┐    ┌────────▼──────────────┐
+            │   LIVE PATH (SSE)  │    │  RELOAD PATH (HTTP)   │
+            │                    │    │                        │
+            │ thought_stream()   │    │ GET /chat/{id}/event-log│
+            │   ▼                │    │   ▼                    │
+            │ SSE → browser      │    │ get_session_thoughts() │
+            │ sse-swap="message" │    │ + get_order_timeline() │
+            │ afterbegin into    │    │ + message history      │
+            │ #event-timeline    │    │   ▼                    │
+            └────────────────────┘    │ event_log.html         │
+                                      │ replaces #thought-log  │
+                                      └────────────────────────┘
+```
+
+### Timeline Format (`etl-row`)
+
+Both paths render into the same `etl-row` structure:
+
+```html
+<div class="etl-row">
+    <div class="etl-spine">
+        <div class="etl-dot dot-{color}"></div>  <!-- sage/gold/rose/sky/lav/dim -->
+        <div class="etl-line"></div>
+    </div>
+    <div class="etl-body">
+        <div class="etl-header">
+            <span class="etl-type">Event Type</span>
+            <span class="etl-actor">agent</span>
+        </div>
+        <div class="etl-desc">Description text</div>
+        <div class="etl-ts">2026-02-28 04:48:38 UTC</div>  <!-- optional, only on reload -->
+    </div>
+</div>
+```
+
+LLM entries have expandable `<details>` with request/response summaries persisted
+in `session_thoughts.details_json`.
+
+### SSE Targeting
+
+- `#thought-log` — outer scrollable container (overflow-y: auto)
+- `#event-timeline` — inner timeline div (`<div class="event-timeline" id="event-timeline">`)
+- SSE connector targets `#event-timeline` with `hx-swap="afterbegin"` (newest at top)
+- On session switch, `chat_pane.html` OOB-swaps both `#thought-connector` (new SSE URL)
+  and `#thought-log` (triggers `hx-get` with `hx-trigger="load"` to fetch persisted events)
+
+### Persisted Tables
+
+```sql
+CREATE TABLE IF NOT EXISTS session_thoughts (
+    thought_id   TEXT PRIMARY KEY,
+    session_id   TEXT NOT NULL,
+    node         TEXT NOT NULL,           -- supervisor | execute | hitl | llm | reason
+    preview      TEXT NOT NULL DEFAULT '',
+    details_json TEXT NOT NULL DEFAULT '', -- JSON: {request_summary, request_count, response_summary}
+    created_at   TEXT NOT NULL
+);
+```
+
+### Event Types in the Log
+
+| Type | Source | Dot Color | Actor |
+|---|---|---|---|
+| `order_placed` | order_events table | sage | system |
+| `status_changed` | order_events table | gold | system |
+| `refund_requested` | order_events table | gold | agent |
+| `refund_approved` | order_events table | sage | operator |
+| `refund_executed` | order_events table | sage | agent |
+| `refund_rejected` | order_events table | rose | operator |
+| `user_message` | message history | gold | user |
+| `agent_reply` | message history | sage | agent |
+| `tool_call` | message history (tool_calls array) | sky | agent |
+| `tool_result` | message history (role=tool) | dim | system |
+| `supervisor` | session_thoughts | lavender | agent |
+| `execute` | session_thoughts | sage | agent |
+| `hitl` | session_thoughts | gold | agent |
+| `llm` | session_thoughts (expandable) | lavender | agent |
+| `reason` | session_thoughts | sky | agent |
+
+### Streaming Control (`_suppress_stream`)
+
+The agent orchestrator uses a `_suppress_stream` flag to control whether LLM
+token chunks are pushed to the browser's streaming bubble:
+
+| Scenario | `_suppress_stream` | Emit method for final reply |
+|---|---|---|
+| Normal first reply (no tools) | `False` — tokens stream live | `emit_stream_done` |
+| After tool calls detected | `True` — stays True | `emit_stream_done` (complete text) |
+| Post-HITL resume | `True` (from `from_hitl`) | `emit_chat_append` (new bubble) |
+
+**Why `emit_chat_append` for post-HITL:** The streaming bubble (`#reply-body-{session_id}`)
+was already consumed by the HITL ack message via `emit_stream_done`. After operator
+approval, that DOM element no longer exists. `emit_chat_append` appends a fresh full
+`msg-agent` bubble to `#commune-content` via the `append` SSE event instead.
+
+### Chat Pane Rendering Rules
+
+- `role=user` → left-aligned customer bubble
+- `role=assistant` → right-aligned agent bubble (with `[AI]` or `[Agent]` chip)
+- `role=tool` → **not rendered** in chat (only visible in Event Log)
+- Processing bubble → only shown when `is_running AND ai_on AND last_role != "assistant"`

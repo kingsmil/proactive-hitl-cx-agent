@@ -16,18 +16,35 @@ async def _trigger_outreach_for_order(order: dict) -> str:
     sid = "proactive-demo-{}".format(order["order_id"])
     db.get_or_create_session(sid, channel="proactive")
 
-    synthetic_msg = (
-        "[System — Demo Outreach]\n"
-        "Instructions: The customer's order has been delayed. Reach out "
-        "empathetically, provide a clear explanation, and proactively offer "
-        "a 10% discount or refund as compensation. Keep the tone warm, "
-        "professional, and concise.\n"
-        "Context: Order {order_id} for {customer_name} ({customer_phone}) — "
-        "product '{product_name}', total ${total_amount:.2f}, "
+    # Log the outreach trigger as an order event (visible in the event log timeline)
+    outreach_desc = (
+        "Proactive outreach initiated — order {order_id} for {customer_name} "
+        "({customer_phone}), product '{product_name}', total ${total_amount:.2f}, "
         "status '{status}'."
     ).format(**order)
+    db.log_order_event(
+        order["order_id"],
+        "outreach_triggered",
+        outreach_desc,
+        actor="system",
+        session_id=sid,
+    )
 
-    db.append_message(sid, "user", synthetic_msg)
+    # Inject as a system-level instruction (not a "user" message).
+    # This gives the LLM context without rendering as a customer bubble in the chat.
+    system_instruction = (
+        "The customer's order has been delayed. Reach out empathetically, "
+        "provide a clear explanation, and proactively offer a 10% discount or "
+        "refund as compensation. Keep the tone warm, professional, and concise.\n"
+        "Context: Order {order_id} for {customer_name} ({customer_phone}) — "
+        "product '{product_name}', total ${total_amount:.2f}, status '{status}'."
+    ).format(**order)
+
+    db.append_raw_message(sid, {
+        "role": "system",
+        "content": system_instruction,
+    })
+
     db.set_session_status(sid, db.RUNNING)
     asyncio.create_task(run_agent(sid))
     return sid

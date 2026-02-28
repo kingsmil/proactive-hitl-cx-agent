@@ -41,14 +41,19 @@ async def execute_task(task: dict) -> None:
         sid = f"proactive-{task_id}-{order['order_id']}"
         db.get_or_create_session(sid, channel="proactive")
 
-        synthetic_msg = (
-            f"[System Executing Rule: {task_id}]\n"
+        # Inject as a system-level instruction (not "user") so it doesn't
+        # render as a customer bubble in the chat pane.
+        system_instruction = (
+            f"[Executing Rule: {task_id}]\n"
             f"Instructions: {task.get('system_prompt_override', '')}\n"
             f"Context: Order {order['order_id']} for {order['customer_phone']}"
             f" is currently '{order['status']}'."
         )
 
-        db.append_message(sid, "user", synthetic_msg)
+        db.append_raw_message(sid, {
+            "role": "system",
+            "content": system_instruction,
+        })
         db.set_session_status(sid, db.RUNNING)
 
         log.info("Enqueuing proactive session %s", sid)
