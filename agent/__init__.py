@@ -5,7 +5,7 @@ from markupsafe import escape
 
 import db
 from agent.llm_client import call_llm, call_llm_streaming
-from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS, get_ack_message, sanitize_json_fragment
+from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS, get_ack_message, sanitize_json_fragment, validate_refund
 from agent.sse_events import (
     thought_queues,
     stream_queues,
@@ -158,6 +158,24 @@ async def _run_agent_body(session_id: str) -> None:
                     })
 
                 elif name in HITL_TOOLS:
+                    # Pre-flight validation for refunds
+                    if name == "issue_refund":
+                        refund_error = validate_refund(
+                            args.get("order_id", ""),
+                            args.get("customer_phone", ""),
+                        )
+                        if refund_error:
+                            await emit_thought(
+                                session_id, "execute",
+                                "✗ {} rejected: {}".format(name, refund_error),
+                            )
+                            db.append_raw_message(session_id, {
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": "Cannot issue refund: {}".format(refund_error),
+                            })
+                            continue  # skip HITL gate, let LLM loop handle the error
+
                     await emit_thought(
                         session_id, "hitl",
                         "⚠ {} requires operator approval".format(name),

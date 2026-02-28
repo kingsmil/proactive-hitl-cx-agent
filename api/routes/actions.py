@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, BackgroundTasks, Form
 import db
 from agent import run_agent
+from agent.tools import validate_refund
 from api.routes.config import templates
 
 router = APIRouter()
@@ -24,7 +25,33 @@ async def approve_action(
         return _already_handled(request, session_id)
     pending = db.get_pending_action(session_id)
     if pending and pending.get("tool_name") == "issue_refund":
-        order_id = pending["arguments"].get("order_id", "")
+        args = pending["arguments"]
+        order_id = args.get("order_id", "")
+        # Re-validate: order state may have changed while awaiting approval
+        refund_error = validate_refund(
+            order_id, args.get("customer_phone", ""),
+        )
+        if refund_error:
+            # Auto-reject: order is no longer eligible for a refund
+            if order_id:
+                db.log_order_event(
+                    order_id,
+                    "refund_auto_rejected",
+                    "Auto-rejected at approval: {}".format(refund_error),
+                    actor="system",
+                    session_id=session_id,
+                )
+            db.delete_pending_action(session_id)
+            db.append_message(
+                session_id, "tool",
+                "Refund could not be executed: {}".format(refund_error),
+            )
+            background_tasks.add_task(run_agent, session_id)
+            pending_count = len(db.get_all_paused_sessions())
+            return templates.TemplateResponse(
+                "partials/action_decision.html",
+                {"request": request, "decision": "rejected", "session_id": session_id, "pending_count": pending_count},
+            )
         if order_id:
             db.log_order_event(
                 order_id,
