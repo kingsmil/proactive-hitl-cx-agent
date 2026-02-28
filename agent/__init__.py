@@ -110,7 +110,7 @@ async def _run_agent_body(session_id: str) -> None:
     # We use a default-arg trick in push_chunk so the closure captures a *copy*
     # of the flag value at the time the function is defined each iteration,
     # rather than binding to the outer variable by reference.
-    _suppress_stream = from_hitl
+    _suppress_stream = True
 
     while db.get_session(session_id)["status"] == db.RUNNING:
         history = db.get_history(session_id)
