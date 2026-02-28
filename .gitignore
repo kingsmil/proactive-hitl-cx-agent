@@ -10,3 +10,9 @@ venv
 venv_new
 scheduledTasks/*.json
 !scheduledTasks/vip_delay_outreach.json
+.agent
+.agents
+.claude
+worktrees
+.worktress
+.idea
