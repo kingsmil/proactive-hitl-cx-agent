@@ -30,6 +30,10 @@ SessionStatus = Literal["RUNNING", "PAUSED", "DONE"]
 #       ▼
 #     cancelled
 #
+VALID_ORDER_STATUSES: set[str] = {
+    "processing", "delayed", "shipped", "delivered", "cancelled", "refunded",
+}
+
 ORDER_STATUS_GRAPH: dict[str, set[str]] = {
     "processing": {"shipped", "delayed", "cancelled", "refunded"},
     "delayed":    {"shipped", "cancelled", "refunded"},
@@ -548,14 +552,22 @@ def query_stale_delayed_orders(hours: int = 24) -> List[OrderRow]:
 def update_order_status(order_id: str, new_status: str) -> None:
     """Update an order's status, enforcing the ORDER_STATUS_GRAPH.
 
+    Raises ValueError if new_status is not in VALID_ORDER_STATUSES.
     Raises InvalidOrderTransition if the transition is not allowed.
     """
+    target = new_status.lower()
+    if target not in VALID_ORDER_STATUSES:
+        raise ValueError(
+            "Invalid order status '{}'. Must be one of: {}".format(
+                new_status, ", ".join(sorted(VALID_ORDER_STATUSES))
+            )
+        )
+
     order = get_order(order_id)
     if order is None:
         raise ValueError("Order {} not found".format(order_id))
 
     current = order["status"].lower()
-    target = new_status.lower()
     allowed = ORDER_STATUS_GRAPH.get(current, set())
     if target not in allowed:
         raise InvalidOrderTransition(order_id, current, target)

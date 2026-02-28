@@ -18,7 +18,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import db
-from db import ORDER_STATUS_GRAPH, InvalidOrderTransition
+from db import ORDER_STATUS_GRAPH, VALID_ORDER_STATUSES, InvalidOrderTransition
 from agent.tools import validate_refund, issue_refund
 
 
@@ -81,9 +81,12 @@ class TestOrderStatusGraph(DBTestCase):
         expected = {"processing", "delayed", "shipped", "delivered", "cancelled", "refunded"}
         self.assertEqual(set(ORDER_STATUS_GRAPH.keys()), expected)
 
+    def test_valid_statuses_match_graph_keys(self):
+        self.assertEqual(VALID_ORDER_STATUSES, set(ORDER_STATUS_GRAPH.keys()))
+
 
 class TestUpdateOrderStatus(DBTestCase):
-    """Test that update_order_status enforces the state graph."""
+    """Test that update_order_status enforces the state graph and allow list."""
 
     def test_valid_transition_updates_status(self):
         db.update_order_status("ORD-001", "refunded")  # processing → refunded
@@ -125,6 +128,18 @@ class TestUpdateOrderStatus(DBTestCase):
     def test_shipped_to_delivered(self):
         db.update_order_status("ORD-006", "delivered")  # ORD-006 is shipped
         self.assertEqual(db.get_order("ORD-006")["status"], "delivered")
+
+    def test_invalid_status_raises_valueerror(self):
+        with self.assertRaises(ValueError) as ctx:
+            db.update_order_status("ORD-001", "bogus")
+        self.assertIn("Invalid order status", str(ctx.exception))
+        self.assertIn("bogus", str(ctx.exception))
+        # Order should be unchanged
+        self.assertEqual(db.get_order("ORD-001")["status"], "processing")
+
+    def test_empty_status_raises_valueerror(self):
+        with self.assertRaises(ValueError):
+            db.update_order_status("ORD-001", "")
 
     def test_nonexistent_order_raises(self):
         with self.assertRaises(ValueError):
