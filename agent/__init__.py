@@ -17,6 +17,7 @@ from agent.sse_events import (
     emit_chat_append,
     emit_stream_done,
     emit_stream_error,
+    render_queue_badge,
 )
 from agent.telegram_client import send_telegram_message
 
@@ -183,10 +184,7 @@ async def _run_agent_body(session_id: str) -> None:
                     # Streaming bubble IS in the DOM (session was RUNNING from the
                     # user's last message), so emit_stream_done correctly replaces it.
                     pending_count = len(db.get_all_paused_sessions())
-                    oob_badge = (
-                        '<span id="queue-count" hx-swap-oob="innerHTML">'
-                        "{} pending</span>"
-                    ).format(pending_count)
+                    oob_badge = render_queue_badge(pending_count)
                     await emit_stream_done(session_id, ack, oob_html=oob_badge)
                     await _dispatch_reply(session_id, ack)
                     return  # halt — agent re-entered via /actions/approve

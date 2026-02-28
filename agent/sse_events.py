@@ -136,3 +136,10 @@ async def emit_stream_error(session_id: str) -> None:
     html = _jinja.get_template("partials/agent_stream_error.html").render()
     _ensure_stream_queue(session_id)
     await stream_queues[session_id].put({"event": "done", "data": html})
+
+
+def render_queue_badge(pending_count: int) -> str:
+    """Render the OOB queue-count badge from its template partial."""
+    return _jinja.get_template("partials/queue_badge.html").render(
+        pending_count=pending_count
+    )
