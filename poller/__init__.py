@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 import db
+from agent.llm_client import PROACTIVE_IDENTITY_OVERRIDE
 
 log = logging.getLogger("poller")
 
@@ -49,10 +50,7 @@ async def execute_task(task: dict) -> None:
             f"Instructions: {task.get('system_prompt_override', '')}\n"
             f"Context: Order {order['order_id']} for {customer_name} "
             f"({order['customer_phone']}) is currently '{order['status']}'.\n"
-            f"IMPORTANT: You already have the customer's identity from the context above. "
-            f"Do NOT ask for their phone number. Instead, greet them by name "
-            f"(e.g. 'Hi {customer_name}, this is CustomerClaw support') and proceed "
-            f"directly with the outreach message."
+            + PROACTIVE_IDENTITY_OVERRIDE
         )
 
         db.append_raw_message(sid, {

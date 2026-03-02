@@ -1,53 +1,12 @@
 <!-- Rules chat POST response — user bubble + AI reply, appended via beforeend -->
+
 <!-- User message -->
-<div style="
-    align-self: flex-end;
-    max-width: 85%;
-    background: var(--lav-glow, rgba(140,120,200,0.08));
-    border: 1px solid var(--border-mist);
-    border-radius: var(--radius);
-    padding: 8px 12px;
-    font-family: var(--font-body);
-    font-size: 12px;
-    color: var(--text-main);
-    line-height: 1.5;
-    word-break: break-word;
-">{{ user_message }}</div>
+{% set msg = {"role": "user", "content": user_message} %}
+{% include "partials/rules_message.html" %}
 
 <!-- AI reply -->
-<div style="
-    align-self: flex-start;
-    max-width: 85%;
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-">
-    <div style="
-        flex-shrink: 0;
-        width: 22px; height: 22px;
-        border-radius: 50%;
-        background: var(--surface);
-        border: 1px solid var(--border-mist);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: var(--font-display);
-        font-size: 9px;
-        color: var(--pb-court);
-    ">R</div>
-    <div style="
-        background: var(--lift, rgba(255,255,255,0.03));
-        border: 1px solid var(--border-mist);
-        border-radius: var(--radius);
-        padding: 8px 12px;
-        font-family: var(--font-body);
-        font-size: 12px;
-        color: var(--text-main);
-        line-height: 1.5;
-        word-break: break-word;
-        white-space: pre-wrap;
-    ">{{ ai_reply }}</div>
-</div>
+{% set msg = {"role": "assistant", "content": ai_reply} %}
+{% include "partials/rules_message.html" %}
 
 <!-- OOB: refresh rules list after potential changes -->
 <div id="rules-list" hx-swap-oob="innerHTML">

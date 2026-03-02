@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
+from starlette.responses import Response
 
 import db
 from agent.rules_ai import run_rules_ai
@@ -12,7 +13,7 @@ log = logging.getLogger("rules")
 
 
 @router.get("/rules", response_class=HTMLResponse)
-async def rules_panel(request: Request):
+async def rules_panel(request: Request) -> Response:
     """Full rules panel — task list + chat history."""
     tasks = db.list_scheduled_tasks()
     chat_messages = db.get_rules_chat_display()
@@ -27,7 +28,7 @@ async def rules_panel(request: Request):
 
 
 @router.get("/rules/list", response_class=HTMLResponse)
-async def rules_list(request: Request):
+async def rules_list(request: Request) -> Response:
     """Just the rules list partial (for OOB refresh)."""
     tasks = db.list_scheduled_tasks()
     return templates.TemplateResponse(
@@ -37,7 +38,7 @@ async def rules_list(request: Request):
 
 
 @router.post("/rules/chat", response_class=HTMLResponse)
-async def rules_chat(request: Request, message: str = Form(...)):
+async def rules_chat(request: Request, message: str = Form(...)) -> Response:
     """Send a message to the Rules AI and return user + AI bubbles."""
     ai_reply = await run_rules_ai(message)
     tasks = db.list_scheduled_tasks()
@@ -53,7 +54,7 @@ async def rules_chat(request: Request, message: str = Form(...)):
 
 
 @router.post("/rules/chat/clear", response_class=HTMLResponse)
-async def rules_chat_clear(request: Request):
+async def rules_chat_clear(request: Request) -> Response:
     """Clear rules chat history and return empty state."""
     db.clear_rules_chat_history()
     return templates.TemplateResponse(

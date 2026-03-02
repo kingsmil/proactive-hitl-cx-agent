@@ -4,7 +4,10 @@ import logging
 from markupsafe import escape
 
 import db
-from agent.llm_client import call_llm, call_llm_streaming, SYSTEM_PROMPT
+from agent.llm_client import (
+    call_llm, call_llm_streaming,
+    PROACTIVE_SYSTEM_PROMPT,
+)
 from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS, get_ack_message, sanitize_json_fragment, validate_refund
 from agent.sse_events import (
     thought_queues,
@@ -22,11 +25,6 @@ from agent.sse_events import (
 from agent.telegram_client import send_telegram_message
 
 log = logging.getLogger("agent")
-
-PROACTIVE_SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
-    "**CRITICAL**: The first thing you must do when a customer asks about an order is to ask for their phone number for verification. Do not proceed until you have their phone number.",
-    "**CRITICAL**: This is a proactive outreach session. You already have the customer's identity from the context injected into this conversation. Do NOT ask for their phone number. Instead, greet the customer by name and proceed directly with the outreach message.",
-)
 
 # ---------------------------------------------------------------------------
 # Locks — one asyncio.Lock per session

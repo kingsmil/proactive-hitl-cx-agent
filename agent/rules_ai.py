@@ -205,6 +205,8 @@ def _exec_create_or_update_rule(
     except (ValueError, KeyError) as e:
         return f"Invalid cron expression '{cron}': {e}"
 
+    is_update = db.get_scheduled_task(task_id) is not None
+
     task = {
         "task_id": task_id,
         "enabled": enabled,
@@ -218,10 +220,10 @@ def _exec_create_or_update_rule(
     try:
         from poller import reload_scheduler
         reload_scheduler()
-    except Exception as e:
+    except (ImportError, OSError, ValueError) as e:
         log.warning("Failed to reload scheduler: %s", e)
 
-    action = "updated" if db.get_scheduled_task(task_id) else "created"
+    action = "updated" if is_update else "created"
     return f"Rule '{task_id}' {action} successfully. Scheduler reloaded."
 
 
@@ -232,7 +234,7 @@ def _exec_delete_rule(task_id: str) -> str:
     try:
         from poller import reload_scheduler
         reload_scheduler()
-    except Exception as e:
+    except (ImportError, OSError, ValueError) as e:
         log.warning("Failed to reload scheduler: %s", e)
     return f"Rule '{task_id}' deleted. Scheduler reloaded."
 
@@ -244,7 +246,7 @@ def _exec_toggle_rule(task_id: str, enabled: bool) -> str:
     try:
         from poller import reload_scheduler
         reload_scheduler()
-    except Exception as e:
+    except (ImportError, OSError, ValueError) as e:
         log.warning("Failed to reload scheduler: %s", e)
     status = "enabled" if enabled else "disabled"
     return f"Rule '{task_id}' is now {status}. Scheduler reloaded."

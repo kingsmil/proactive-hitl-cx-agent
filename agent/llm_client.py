@@ -34,6 +34,24 @@ Guidelines:
 - When you have order details, reference the customer by name and mention the product they ordered.
 - If the user hasn't asked about a specific order, you may still need to ask for their phone number first, and then use list_orders to see what orders are available and suggest a few the user might want to ask about."""
 
+# Shared text injected into proactive sessions so the agent skips the
+# phone-number verification step (identity is already known from context).
+PROACTIVE_IDENTITY_OVERRIDE = (
+    "IMPORTANT: You already have the customer's identity from the context above. "
+    "Do NOT ask for their phone number. Instead, greet them by name "
+    "and proceed directly with the outreach message."
+)
+
+# System prompt variant for proactive outreach sessions — replaces the
+# phone-verification instruction with the identity override.
+PROACTIVE_SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
+    "**CRITICAL**: The first thing you must do when a customer asks about an "
+    "order is to ask for their phone number for verification. Do not proceed "
+    "until you have their phone number.",
+    "**CRITICAL**: This is a proactive outreach session. "
+    + PROACTIVE_IDENTITY_OVERRIDE,
+)
+
 # ---------------------------------------------------------------------------
 # LLM helpers — shared config, request building, streaming
 # ---------------------------------------------------------------------------
@@ -138,18 +156,7 @@ def call_llm(history, tools, system_prompt=None):
 
 def call_llm_with_custom_prompt(system_prompt: str, history: list, tools: list):
     """POST with a custom system prompt instead of the default SYSTEM_PROMPT."""
-    url, model, headers = _build_llm_endpoint_config()
-    body_dict = {
-        "model": model,
-        "messages": [{"role": "system", "content": system_prompt}] + history,
-        "tools": tools,
-        "tool_choice": "auto",
-    }
-    payload = json.dumps(body_dict).encode("utf-8")
-    log.debug("LLM REQUEST (custom) → %s\n%s", url, json.dumps(body_dict, indent=2))
-    response = _execute_llm_request_with_retry(url, headers, payload)
-    log.debug("LLM RESPONSE (custom) ←\n%s", json.dumps(response, indent=2))
-    return response
+    return call_llm(history, tools, system_prompt=system_prompt)
 
 
 def call_llm_streaming(history, tools, push_chunk_callback: Optional[Callable[[str], None]] = None, system_prompt=None):
