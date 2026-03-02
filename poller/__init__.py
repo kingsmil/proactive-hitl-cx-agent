@@ -43,11 +43,16 @@ async def execute_task(task: dict) -> None:
 
         # Inject as a system-level instruction (not "user") so it doesn't
         # render as a customer bubble in the chat pane.
+        customer_name = order.get('customer_name', 'Customer')
         system_instruction = (
             f"[Executing Rule: {task_id}]\n"
             f"Instructions: {task.get('system_prompt_override', '')}\n"
-            f"Context: Order {order['order_id']} for {order['customer_phone']}"
-            f" is currently '{order['status']}'."
+            f"Context: Order {order['order_id']} for {customer_name} "
+            f"({order['customer_phone']}) is currently '{order['status']}'.\n"
+            f"IMPORTANT: You already have the customer's identity from the context above. "
+            f"Do NOT ask for their phone number. Instead, greet them by name "
+            f"(e.g. 'Hi {customer_name}, this is CustomerClaw support') and proceed "
+            f"directly with the outreach message."
         )
 
         db.append_raw_message(sid, {

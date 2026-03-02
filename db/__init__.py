@@ -198,6 +198,15 @@ def init_db() -> None:
             details_json TEXT NOT NULL DEFAULT '',
             created_at  TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS rules_chat (
+            message_id   TEXT PRIMARY KEY,
+            role         TEXT NOT NULL,
+            content      TEXT NOT NULL,
+            tool_calls   TEXT,
+            tool_call_id TEXT,
+            created_at   TEXT NOT NULL
+        );
     """)
     conn.commit()
     # Migration: add ai_enabled column for existing databases
@@ -676,6 +685,123 @@ def get_all_orders_with_event_count() -> List[Dict]:
         """
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Rules chat helpers
+# ---------------------------------------------------------------------------
+
+def append_rules_chat_message(
+    role: str,
+    content: str,
+    tool_calls: Optional[str] = None,
+    tool_call_id: Optional[str] = None,
+) -> str:
+    """Append a message to the rules chat history and return its ID."""
+    message_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _conn()
+    conn.execute(
+        "INSERT INTO rules_chat (message_id, role, content, tool_calls, tool_call_id, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (message_id, role, content, tool_calls, tool_call_id, now),
+    )
+    conn.commit()
+    return message_id
+
+
+def get_rules_chat_history() -> List[Dict]:
+    """Return rules chat messages formatted for the LLM (strips internal fields)."""
+    rows = _conn().execute(
+        "SELECT * FROM rules_chat ORDER BY created_at ASC"
+    ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        msg: Dict = {"role": d["role"], "content": d["content"] or ""}
+        if d.get("tool_calls"):
+            try:
+                msg["tool_calls"] = json.loads(d["tool_calls"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if d.get("tool_call_id"):
+            msg["tool_call_id"] = d["tool_call_id"]
+        result.append(msg)
+    return result
+
+
+def get_rules_chat_display() -> List[Dict]:
+    """Return rules chat messages for display (includes all fields)."""
+    rows = _conn().execute(
+        "SELECT * FROM rules_chat ORDER BY created_at ASC"
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def clear_rules_chat_history() -> None:
+    """Delete all messages from the rules chat."""
+    conn = _conn()
+    conn.execute("DELETE FROM rules_chat")
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Scheduled task helpers (file-based)
+# ---------------------------------------------------------------------------
+
+_TASKS_DIR = Path("scheduledTasks")
+
+
+def list_scheduled_tasks() -> List[Dict]:
+    """Read all scheduled task JSON files from the scheduledTasks directory."""
+    _TASKS_DIR.mkdir(exist_ok=True)
+    tasks = []
+    for fp in sorted(_TASKS_DIR.glob("*.json")):
+        try:
+            with open(fp, "r") as f:
+                tasks.append(json.load(f))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return tasks
+
+
+def get_scheduled_task(task_id: str) -> Optional[Dict]:
+    """Read a single scheduled task by ID."""
+    fp = _TASKS_DIR / f"{task_id}.json"
+    if not fp.exists():
+        return None
+    try:
+        with open(fp, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def save_scheduled_task(task: dict) -> None:
+    """Write a scheduled task dict to its JSON file."""
+    _TASKS_DIR.mkdir(exist_ok=True)
+    fp = _TASKS_DIR / f"{task['task_id']}.json"
+    with open(fp, "w") as f:
+        json.dump(task, f, indent=2)
+
+
+def delete_scheduled_task(task_id: str) -> bool:
+    """Delete a scheduled task file. Returns True if it existed."""
+    fp = _TASKS_DIR / f"{task_id}.json"
+    if fp.exists():
+        fp.unlink()
+        return True
+    return False
+
+
+def toggle_scheduled_task(task_id: str, enabled: bool) -> Optional[Dict]:
+    """Update the enabled field of a task. Returns the updated task or None."""
+    task = get_scheduled_task(task_id)
+    if task is None:
+        return None
+    task["enabled"] = enabled
+    save_scheduled_task(task)
+    return task
 
 
 # ---------------------------------------------------------------------------

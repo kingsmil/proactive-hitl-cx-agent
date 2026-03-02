@@ -621,3 +621,130 @@ approval, that DOM element no longer exists. `emit_chat_append` appends a fresh 
 - `role=assistant` → right-aligned agent bubble (with `[AI]` or `[Agent]` chip)
 - `role=tool` → **not rendered** in chat (only visible in Event Log)
 - Processing bubble → only shown when `is_running AND ai_on AND last_role != "assistant"`
+
+---
+
+## Rules AI Configuration
+
+Operators can configure outreach rules (scheduled tasks) through a natural-language
+AI assistant in the "Rules" tab of the right pane.
+
+### Architecture
+
+```
+Operator (Rules tab in dashboard)
+         │
+         ▼
+   POST /rules/chat  ──► run_rules_ai(message)
+         │
+         ▼
+   Rules AI Orchestrator (agent/rules_ai.py)
+   ├── call_llm_with_custom_prompt()  ──► OpenRouter (custom system prompt)
+   ├── Tool loop: list/get/create_or_update/delete/toggle rules
+   ├── Writes to scheduledTasks/*.json
+   └── Calls poller.reload_scheduler() after changes
+         │
+         ▼
+   APScheduler (poller/__init__.py)
+   └── Hot-reloads cron jobs from scheduledTasks/
+```
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `agent/rules_ai.py` | Rules AI system prompt, tool schemas, tool impls, orchestrator loop |
+| `api/routes/rules.py` | HTTP endpoints: `GET /rules`, `GET /rules/list`, `POST /rules/chat`, `POST /rules/chat/clear` |
+| `frontend/templates/partials/rules_panel.html` | Full rules tab (list + chat + input) |
+| `frontend/templates/partials/rules_list.html` | Rule cards with status chips |
+| `frontend/templates/partials/rules_message.html` | Single chat bubble (user or AI) |
+| `frontend/templates/partials/rules_chat_response.html` | POST response: user + AI bubbles + OOB list refresh |
+| `frontend/templates/partials/rules_chat_area.html` | Empty state for cleared chat |
+
+### Database Table
+
+```sql
+CREATE TABLE IF NOT EXISTS rules_chat (
+    message_id   TEXT PRIMARY KEY,
+    role         TEXT NOT NULL,        -- user | assistant | tool
+    content      TEXT NOT NULL,
+    tool_calls   TEXT,                 -- JSON, only for assistant msgs with tool calls
+    tool_call_id TEXT,                 -- only for role=tool
+    created_at   TEXT NOT NULL
+);
+```
+
+### DB Helpers (`db/__init__.py`)
+
+- `append_rules_chat_message(role, content, tool_calls=None, tool_call_id=None) -> str`
+- `get_rules_chat_history() -> list[dict]` — formatted for LLM
+- `get_rules_chat_display() -> list[dict]` — all fields for UI
+- `clear_rules_chat_history() -> None`
+- `list_scheduled_tasks() -> list[dict]` — reads `scheduledTasks/*.json`
+- `get_scheduled_task(task_id) -> dict | None`
+- `save_scheduled_task(task) -> None`
+- `delete_scheduled_task(task_id) -> bool`
+- `toggle_scheduled_task(task_id, enabled) -> dict | None`
+
+### LLM Client
+
+`call_llm_with_custom_prompt(system_prompt, history, tools)` in `agent/llm_client.py`
+reuses the shared LLM config but accepts a custom system prompt instead of the
+default `SYSTEM_PROMPT`.
+
+### Rules AI Tools (all executed immediately — no HITL gate)
+
+| Tool | Description |
+|---|---|
+| `list_rules` | List all configured rules |
+| `get_rule(task_id)` | Get full config of a rule |
+| `create_or_update_rule(task_id, cron, filters, system_prompt_override, enabled)` | Create/update rule, validates cron, writes JSON, reloads scheduler |
+| `delete_rule(task_id)` | Delete rule file, reload scheduler |
+| `toggle_rule(task_id, enabled)` | Enable/disable rule, reload scheduler |
+
+### Scheduled Task JSON Format
+
+```json
+{
+  "task_id": "vip_delay_outreach",
+  "enabled": true,
+  "cron": "0 10 * * *",
+  "filters": {
+    "status": "delayed",
+    "min_hours_since_update": 24,
+    "phone_prefix": "+1-555"
+  },
+  "system_prompt_override": "You are a VIP customer success agent..."
+}
+```
+
+### Proactive Outreach Identity Override
+
+Both `api/routes/demo.py` and `poller/__init__.py` inject a system instruction that
+overrides the main system prompt's phone-number-ask behavior for proactive sessions:
+
+> "You already have the customer's identity from the context above. Do NOT ask for
+> their phone number. Instead, greet them by name and proceed directly with the
+> outreach message."
+
+This prevents the agent from redundantly asking for a phone number when it already
+has the customer's context from the order data.
+
+### API Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/rules` | Full rules panel (list + chat history) |
+| `GET` | `/rules/list` | Rules list partial (OOB refresh) |
+| `POST` | `/rules/chat` | Send message to Rules AI, returns user + AI bubbles |
+| `POST` | `/rules/chat/clear` | Clear chat history, return empty state |
+
+### Template Variable Contract
+
+| Template | Required variables |
+|---|---|
+| `rules_panel.html` | `tasks` (list), `chat_messages` (list) |
+| `rules_list.html` | `tasks` (list of task dicts) |
+| `rules_message.html` | `msg` (dict with `.role`, `.content`) |
+| `rules_chat_response.html` | `user_message`, `ai_reply`, `tasks` |
+| `rules_chat_area.html` | (none) |

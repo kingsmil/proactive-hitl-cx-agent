@@ -37,7 +37,11 @@ async def _trigger_outreach_for_order(order: dict) -> str:
         "provide a clear explanation, and proactively offer a 10% discount or "
         "refund as compensation. Keep the tone warm, professional, and concise.\n"
         "Context: Order {order_id} for {customer_name} ({customer_phone}) — "
-        "product '{product_name}', total ${total_amount:.2f}, status '{status}'."
+        "product '{product_name}', total ${total_amount:.2f}, status '{status}'.\n"
+        "IMPORTANT: You already have the customer's identity from the context above. "
+        "Do NOT ask for their phone number. Instead, greet them by name "
+        "(e.g. 'Hi {customer_name}, this is CustomerClaw support') and proceed "
+        "directly with the outreach message."
     ).format(**order)
 
     db.append_raw_message(sid, {
