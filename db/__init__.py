@@ -518,13 +518,38 @@ def _build_sql_query_for_filters(filters: dict):
     """Build a safe parameterised SQLite query from a filter dict.
 
     Supported keys:
-        status (str)                — orders.status value (default 'delayed')
+        status (str | list[str])    — order status(es) to match; omit to match ALL statuses
+        exclude_statuses (list[str])— statuses to exclude (e.g. ["cancelled", "refunded"])
         min_hours_since_update (int)— only orders whose last_updated is older
         phone_prefix (str)          — customer_phone must start with this prefix
-    Always implicitly filters outreached = 0.
+        include_outreached (bool)   — if true, include already-outreached orders (default false)
     """
-    conditions = ["status = ?", "outreached = 0"]
-    params: list = [filters.get("status", "delayed")]
+    conditions: list[str] = []
+    params: list = []
+
+    # Status filter — supports single string, list of strings, or omitted (all)
+    if "status" in filters:
+        status_val = filters["status"]
+        if isinstance(status_val, list):
+            if status_val:  # non-empty list
+                placeholders = ", ".join("?" for _ in status_val)
+                conditions.append(f"status IN ({placeholders})")
+                params.extend(s.lower() for s in status_val)
+        else:
+            conditions.append("status = ?")
+            params.append(str(status_val).lower())
+
+    # Exclude statuses
+    if "exclude_statuses" in filters:
+        excluded = filters["exclude_statuses"]
+        if isinstance(excluded, list) and excluded:
+            placeholders = ", ".join("?" for _ in excluded)
+            conditions.append(f"status NOT IN ({placeholders})")
+            params.extend(s.lower() for s in excluded)
+
+    # Outreached filter — default is to exclude already-outreached orders
+    if not filters.get("include_outreached", False):
+        conditions.append("outreached = 0")
 
     if "min_hours_since_update" in filters:
         cutoff = (
@@ -538,7 +563,7 @@ def _build_sql_query_for_filters(filters: dict):
         conditions.append("customer_phone LIKE ?")
         params.append(f"{filters['phone_prefix']}%")
 
-    where_clause = " AND ".join(conditions)
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
     return "SELECT * FROM orders WHERE {0}".format(where_clause), params
 
 

@@ -31,10 +31,12 @@ Each rule has:
 - **task_id**: A unique snake_case identifier (e.g. "delayed_order_followup")
 - **enabled**: Whether the rule is active (true/false)
 - **cron**: A cron expression for scheduling (5-field: minute hour day-of-month month day-of-week)
-- **filters**: Query filters to match orders:
-  - `status`: Order status to match (processing, delayed, shipped, delivered, cancelled, refunded)
+- **filters**: Query filters to match orders (all optional — omit a field to not filter on it):
+  - `status`: Order status(es) to match — a single string or a list of strings. Valid values: processing, delayed, shipped, delivered, cancelled, refunded. **Omit entirely to match ALL statuses.**
+  - `exclude_statuses`: List of statuses to exclude (e.g. ["cancelled", "refunded"])
   - `min_hours_since_update`: Only orders not updated in this many hours
   - `phone_prefix`: Only orders with phone numbers starting with this prefix
+  - `include_outreached`: If true, include orders that have already been contacted. Default is false (only contact new orders).
 - **system_prompt_override**: Instructions for the AI agent when reaching out to matched customers
 
 ## Cron Syntax Quick Reference
@@ -106,11 +108,23 @@ RULES_TOOLS = [
                     },
                     "filters": {
                         "type": "object",
-                        "description": "Order query filters.",
+                        "description": "Order query filters. Omit 'status' to match ALL order statuses.",
                         "properties": {
-                            "status": {"type": "string"},
-                            "min_hours_since_update": {"type": "number"},
-                            "phone_prefix": {"type": "string"},
+                            "status": {
+                                "oneOf": [
+                                    {"type": "string", "description": "Single status to match."},
+                                    {"type": "array", "items": {"type": "string"}, "description": "List of statuses to match."},
+                                ],
+                                "description": "Order status(es) to match: processing, delayed, shipped, delivered, cancelled, refunded. Omit to match all.",
+                            },
+                            "exclude_statuses": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Statuses to exclude (e.g. ['cancelled', 'refunded']).",
+                            },
+                            "min_hours_since_update": {"type": "number", "description": "Only orders not updated in this many hours."},
+                            "phone_prefix": {"type": "string", "description": "Only orders with phone numbers starting with this prefix."},
+                            "include_outreached": {"type": "boolean", "description": "If true, include orders already contacted. Default false."},
                         },
                     },
                     "system_prompt_override": {
