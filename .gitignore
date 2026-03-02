@@ -9,4 +9,5 @@ __pycache__/
 venv
 venv_new
 scheduledTasks/*.json
+.claude/worktrees
 !scheduledTasks/vip_delay_outreach.json
