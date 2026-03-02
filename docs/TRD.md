@@ -3,116 +3,65 @@
 ## System Architecture
 
 ```mermaid
-flowchart TB
-    subgraph CLIENT["Operator Dashboard (Jinja2 + HTMX)"]
-        direction LR
+flowchart LR
+    subgraph UI["👤 Operator Dashboard"]
+        direction TB
         CHAT["Chat Pane"]
-        ELOG["Event Log"]
-        INBOX["Inbox / Approvals / Orders / Rules"]
+        APPROVE["Approvals"]
+        RULES_UI["Rules Config"]
     end
 
-    subgraph API["FastAPI Backend"]
+    subgraph BACKEND["⚙️ FastAPI"]
         direction TB
-        MSG["POST /chat/message"]
-        SSE["GET /agent/thoughts/:id<br/><i>Server-Sent Events</i>"]
-        APPROVE["POST /actions/approve/:id"]
-        REJECT["POST /actions/reject/:id"]
-        SETTINGS["GET · POST /settings"]
-        RULES_EP["POST /rules/chat"]
+        API["REST + SSE Endpoints"]
     end
 
-    subgraph AGENT["Agent Orchestrator — Plain While Loop"]
+    subgraph CORE["🧠 Agent Orchestrator"]
         direction TB
-        LOOP["run_agent()"]
-        LLM["call_llm()<br/><i>OpenAI SDK → OpenRouter</i>"]
-        SAFE["SAFE Tools<br/>list_orders · check_order_status"]
-        HITL["HITL Gate<br/>issue_refund · upsert_scheduled_task"]
-        STREAM["emit_thought() → SSE Queue"]
-        VALIDATE["validate_refund()<br/><i>Pre-flight + Approve-time</i>"]
+        LOOP["while loop"]
+        LLM["LLM<br/><i>OpenRouter</i>"]
+        LOOP -->|"prompt + history"| LLM
+
+        LLM -->|"tool_calls"| TOOLS
+        LLM -->|"stop"| REPLY["Stream Reply<br/>via SSE"]
+
+        TOOLS{"Safe or<br/>Dangerous?"}
+        TOOLS -->|"✅ Safe"| SAFE["Execute Immediately<br/><i>order lookup</i>"]
+        TOOLS -->|"⚠️ Dangerous"| HITL["HITL Gate<br/><i>refunds</i>"]
+
+        SAFE -->|"result"| LOOP
+        HITL -->|"PAUSE + wait"| PENDING["Pending Action"]
     end
 
-    subgraph RULES["Rules AI"]
-        RULES_LLM["LLM with Rules System Prompt"]
-        RULES_TOOLS["list · get · create/update · delete · toggle"]
+    subgraph PROACTIVE["⏰ CRM Poller"]
+        SCHED["APScheduler<br/><i>cron jobs</i>"]
+        RULES_AI["Rules AI<br/><i>NL → cron config</i>"]
+        RULES_AI -->|"write + reload"| SCHED
     end
 
-    subgraph POLLER["Proactive CRM Poller"]
-        SCHED["APScheduler<br/><i>AsyncIOScheduler</i>"]
-        CRON["Cron Jobs from<br/>scheduledTasks/*.json"]
-        EXEC["execute_task()"]
-    end
+    DB[("SQLite<br/><i>sessions · orders<br/>events · actions</i>")]
 
-    subgraph DB["SQLite State Layer"]
-        SESSIONS[("sessions")]
-        ORDERS[("orders")]
-        PENDING[("pending_actions")]
-        THOUGHTS[("session_thoughts")]
-        EVENTS[("order_events")]
-        RCHAT[("rules_chat")]
-    end
-
-    %% Client → API
-    CHAT -->|"form submit"| MSG
-    ELOG -->|"SSE connect"| SSE
-    INBOX -->|"Grant / Deny"| APPROVE & REJECT
-    INBOX -->|"Rules chat"| RULES_EP
-
-    %% API → Agent
-    MSG -->|"BackgroundTask"| LOOP
-    APPROVE -->|"TOCTOU re-validate"| VALIDATE
-    APPROVE -->|"Resume agent"| LOOP
-    REJECT -->|"Inject rejection → resume"| LOOP
-
-    %% Agent internals
-    LOOP --> LLM
-    LLM -->|"finish_reason: tool_calls"| SAFE
-    LLM -->|"finish_reason: tool_calls"| HITL
-    LLM -->|"finish_reason: stop"| STREAM
-    SAFE -->|"result → loop continues"| LOOP
-    HITL -->|"PAUSED — awaits operator"| PENDING
-    HITL -.->|"pre-flight check"| VALIDATE
-    LOOP --> STREAM
-
-    %% Rules AI
-    RULES_EP --> RULES_LLM
-    RULES_LLM --> RULES_TOOLS
-    RULES_TOOLS -->|"write JSON + reload"| CRON
-
-    %% Poller
-    SCHED --> CRON
-    CRON -->|"filter orders"| EXEC
-    EXEC -->|"synthetic session"| LOOP
-
-    %% SSE to client
-    STREAM -->|"SSE push"| ELOG
+    %% Main flows
+    CHAT -->|"message"| API
+    API -->|"BackgroundTask"| LOOP
+    REPLY -->|"SSE"| UI
+    PENDING -->|"action card"| APPROVE
+    APPROVE -->|"grant / deny"| API
+    API -->|"resume"| LOOP
+    RULES_UI --> RULES_AI
+    SCHED -->|"synthetic session"| LOOP
 
     %% DB connections
-    LOOP --- SESSIONS
-    LOOP --- THOUGHTS
-    SAFE --- ORDERS
-    SAFE --- EVENTS
-    HITL --- PENDING
-    VALIDATE --- ORDERS
-    EXEC --- ORDERS
-    RULES_TOOLS --- RCHAT
-
-    %% Styling
-    classDef client fill:#1a1a2e,stroke:#c9b573,color:#e8dcc8
-    classDef api fill:#16213e,stroke:#c9b573,color:#e8dcc8
-    classDef agent fill:#0f3460,stroke:#9bb59b,color:#e8dcc8
-    classDef rules fill:#1a1a2e,stroke:#b8a9c9,color:#e8dcc8
-    classDef poller fill:#1a1a2e,stroke:#89a4c7,color:#e8dcc8
-    classDef db fill:#1b1b2f,stroke:#c9b573,color:#c9b573
-    classDef gate fill:#2d1b1b,stroke:#c97373,color:#e8dcc8
-
-    class CLIENT client
-    class API api
-    class AGENT agent
-    class RULES rules
-    class POLLER poller
-    class DB db
-    class HITL,VALIDATE gate
+    CORE <-..-> DB
+    PROACTIVE <-..-> DB
 ```
+
+> **Reading the diagram:** A customer message enters from the left, flows through
+> FastAPI into the agent's `while` loop. The LLM decides to either call a **safe tool**
+> (executes instantly, loops back) or a **dangerous tool** (pauses for human approval).
+> The operator approves/denies from the dashboard, and the loop resumes.
+> Separately, the **CRM Poller** fires cron jobs that inject synthetic sessions
+> into the same agent loop — configurable via the **Rules AI** chat interface.
 
 ## Core Flows
 
