@@ -47,6 +47,11 @@ Each rule has:
 - `0 */2 * * *` = every 2 hours
 - `0 9-17 * * 1-5` = hourly 9am-5pm weekdays
 
+**IMPORTANT — Timezone:** Cron expressions run in the **server's local timezone**
+(detected automatically by APScheduler via tzlocal). Do NOT convert to UTC.
+If the operator says "12:24 AM", use `24 0 * * *` directly — the hour field is
+local time (0 = midnight, 16 = 4 PM).
+
 ## Guidelines
 - Always use list_rules first to understand what already exists before making changes.
 - When creating rules, suggest sensible defaults and explain your choices.

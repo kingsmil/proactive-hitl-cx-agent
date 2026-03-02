@@ -347,6 +347,13 @@ Add `db.mark_order_outreached(order_id)` to prevent duplicate triggers.
 
 Mount the scheduler startup/shutdown via FastAPI `lifespan`.
 
+### Timezone
+
+APScheduler's `CronTrigger.from_crontab()` uses the **server's local timezone**
+(auto-detected via `tzlocal`). Cron expressions are in local time, NOT UTC.
+For example, on a server in `Asia/Singapore` (UTC+8), `0 10 * * *` fires at
+10:00 AM SGT. Do not manually convert to UTC.
+
 ---
 
 ## Phase 5 — Wiring & Polish
