@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 import db
 from agent import run_agent
+from agent.llm_client import PROACTIVE_IDENTITY_OVERRIDE
 
 router = APIRouter()
 log = logging.getLogger("demo")
@@ -37,7 +38,8 @@ async def _trigger_outreach_for_order(order: dict) -> str:
         "provide a clear explanation, and proactively offer a 10% discount or "
         "refund as compensation. Keep the tone warm, professional, and concise.\n"
         "Context: Order {order_id} for {customer_name} ({customer_phone}) — "
-        "product '{product_name}', total ${total_amount:.2f}, status '{status}'."
+        "product '{product_name}', total ${total_amount:.2f}, status '{status}'.\n"
+        + PROACTIVE_IDENTITY_OVERRIDE
     ).format(**order)
 
     db.append_raw_message(sid, {

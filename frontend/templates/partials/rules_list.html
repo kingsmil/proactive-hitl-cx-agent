@@ -1,0 +1,50 @@
+<!-- Rules list — rendered inside #rules-list -->
+{% if tasks %}
+    {% for task in tasks %}
+    <div class="session-item" style="cursor:default; padding:8px 14px;">
+        <div class="session-item-icon" style="align-self:flex-start; margin-top:2px;">
+            {% if task.enabled %}
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:var(--sage);">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2" fill="none"/>
+                <polyline points="5.5,8 7.5,10 10.5,6" stroke="currentColor" stroke-width="1.3" fill="none"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            {% else %}
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:var(--text-dim);">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2" fill="none"/>
+                <line x1="5.5" y1="5.5" x2="10.5" y2="10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                <line x1="10.5" y1="5.5" x2="5.5" y2="10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            {% endif %}
+        </div>
+
+        <div class="session-item-body" style="gap:3px;">
+            <div class="session-item-top">
+                <code class="session-sigil-small" style="font-size:10px;">{{ task.task_id }}</code>
+
+                {% if task.enabled %}
+                <span class="chip chip-sage" style="font-size:7px; padding:1px 5px;">Active</span>
+                {% else %}
+                <span class="chip chip-outline" style="font-size:7px; padding:1px 5px;">Disabled</span>
+                {% endif %}
+            </div>
+
+            <div style="font-family:var(--font-mono); font-size:10px; color:var(--pb-court); opacity:0.8;">
+                {{ task.cron | default('* * * * *') }}
+            </div>
+
+            {% if task.filters %}
+            <div class="session-item-preview" style="font-size:10px;">
+                {% if task.filters.status %}status={{ task.filters.status }}{% endif %}
+                {% if task.filters.min_hours_since_update %} &middot; {{ task.filters.min_hours_since_update }}h stale{% endif %}
+                {% if task.filters.phone_prefix %} &middot; phone={{ task.filters.phone_prefix }}{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div style="padding:14px; text-align:center; color:var(--text-dim); font-family:var(--font-body); font-size:12px;">
+        No rules configured yet.
+    </div>
+{% endif %}

@@ -4,7 +4,10 @@ import logging
 from markupsafe import escape
 
 import db
-from agent.llm_client import call_llm, call_llm_streaming
+from agent.llm_client import (
+    call_llm, call_llm_streaming,
+    PROACTIVE_SYSTEM_PROMPT,
+)
 from agent.tools import SAFE_TOOLS, HITL_TOOLS, TOOLS, get_ack_message, sanitize_json_fragment, validate_refund
 from agent.sse_events import (
     thought_queues,
@@ -78,6 +81,12 @@ async def _run_agent_locked(session_id: str) -> None:
 
 
 async def _run_agent_body(session_id: str) -> None:
+    # Detect proactive sessions and swap the system prompt so the agent
+    # greets by name instead of asking for a phone number.
+    session = db.get_session(session_id)
+    is_proactive = (session or {}).get("channel") == "proactive"
+    _system_prompt = PROACTIVE_SYSTEM_PROMPT if is_proactive else None
+
     # ── Phase A: resume from an approved HITL action ──────────────────────────
     #
     # `from_hitl` remembers that the streaming bubble was already consumed by the
@@ -122,7 +131,7 @@ async def _run_agent_body(session_id: str) -> None:
             if _go:
                 _push_streamed_token_to_browser(session_id, token, loop)
 
-        response = await asyncio.to_thread(call_llm_streaming, history, TOOLS, push_chunk)
+        response = await asyncio.to_thread(call_llm_streaming, history, TOOLS, push_chunk, _system_prompt)
 
         choice = response["choices"][0]
         msg = choice["message"]

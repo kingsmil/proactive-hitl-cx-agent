@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 import db
+from agent.llm_client import PROACTIVE_IDENTITY_OVERRIDE
 
 log = logging.getLogger("poller")
 
@@ -43,11 +44,13 @@ async def execute_task(task: dict) -> None:
 
         # Inject as a system-level instruction (not "user") so it doesn't
         # render as a customer bubble in the chat pane.
+        customer_name = order.get('customer_name', 'Customer')
         system_instruction = (
             f"[Executing Rule: {task_id}]\n"
             f"Instructions: {task.get('system_prompt_override', '')}\n"
-            f"Context: Order {order['order_id']} for {order['customer_phone']}"
-            f" is currently '{order['status']}'."
+            f"Context: Order {order['order_id']} for {customer_name} "
+            f"({order['customer_phone']}) is currently '{order['status']}'.\n"
+            + PROACTIVE_IDENTITY_OVERRIDE
         )
 
         db.append_raw_message(sid, {

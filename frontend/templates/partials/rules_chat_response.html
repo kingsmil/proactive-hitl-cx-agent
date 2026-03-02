@@ -1,0 +1,14 @@
+<!-- Rules chat POST response — user bubble + AI reply, appended via beforeend -->
+
+<!-- User message -->
+{% set msg = {"role": "user", "content": user_message} %}
+{% include "partials/rules_message.html" %}
+
+<!-- AI reply -->
+{% set msg = {"role": "assistant", "content": ai_reply} %}
+{% include "partials/rules_message.html" %}
+
+<!-- OOB: refresh rules list after potential changes -->
+<div id="rules-list" hx-swap-oob="innerHTML">
+    {% include "partials/rules_list.html" %}
+</div>

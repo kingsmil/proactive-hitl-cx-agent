@@ -34,6 +34,24 @@ Guidelines:
 - When you have order details, reference the customer by name and mention the product they ordered.
 - If the user hasn't asked about a specific order, you may still need to ask for their phone number first, and then use list_orders to see what orders are available and suggest a few the user might want to ask about."""
 
+# Shared text injected into proactive sessions so the agent skips the
+# phone-number verification step (identity is already known from context).
+PROACTIVE_IDENTITY_OVERRIDE = (
+    "IMPORTANT: You already have the customer's identity from the context above. "
+    "Do NOT ask for their phone number. Instead, greet them by name "
+    "and proceed directly with the outreach message."
+)
+
+# System prompt variant for proactive outreach sessions — replaces the
+# phone-verification instruction with the identity override.
+PROACTIVE_SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
+    "**CRITICAL**: The first thing you must do when a customer asks about an "
+    "order is to ask for their phone number for verification. Do not proceed "
+    "until you have their phone number.",
+    "**CRITICAL**: This is a proactive outreach session. "
+    + PROACTIVE_IDENTITY_OVERRIDE,
+)
+
 # ---------------------------------------------------------------------------
 # LLM helpers — shared config, request building, streaming
 # ---------------------------------------------------------------------------
@@ -65,11 +83,11 @@ def _build_llm_endpoint_config():
     return url, model, headers
 
 
-def _build_llm_request_payload(model, history, tools, stream=False):
+def _build_llm_request_payload(model, history, tools, stream=False, system_prompt=None):
     """Build the JSON request body for the LLM API call."""
     body_dict = {
         "model": model,
-        "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
+        "messages": [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}] + history,
         "tools": tools,
         "tool_choice": "auto",
     }
@@ -126,21 +144,26 @@ def _execute_llm_request_with_retry(url, headers, payload):
 # Public LLM call functions
 # ---------------------------------------------------------------------------
 
-def call_llm(history, tools):
+def call_llm(history, tools, system_prompt=None):
     """POST to OpenRouter or Gemini and return the parsed response dict."""
     url, model, headers = _build_llm_endpoint_config()
-    body_dict, payload = _build_llm_request_payload(model, history, tools)
+    body_dict, payload = _build_llm_request_payload(model, history, tools, system_prompt=system_prompt)
     log.debug("LLM REQUEST  → %s\n%s", url, json.dumps(body_dict, indent=2))
     response = _execute_llm_request_with_retry(url, headers, payload)
     log.debug("LLM RESPONSE ←\n%s", json.dumps(response, indent=2))
     return response
 
 
-def call_llm_streaming(history, tools, push_chunk_callback: Optional[Callable[[str], None]] = None):
+def call_llm_with_custom_prompt(system_prompt: str, history: list, tools: list):
+    """POST with a custom system prompt instead of the default SYSTEM_PROMPT."""
+    return call_llm(history, tools, system_prompt=system_prompt)
+
+
+def call_llm_streaming(history, tools, push_chunk_callback: Optional[Callable[[str], None]] = None, system_prompt=None):
     """POST with stream=True, pushing each token to a callback.
     Returns an assembled response dict in the same shape as call_llm."""
     url, model, headers = _build_llm_endpoint_config()
-    body_dict, payload = _build_llm_request_payload(model, history, tools, stream=True)
+    body_dict, payload = _build_llm_request_payload(model, history, tools, stream=True, system_prompt=system_prompt)
     log.debug("LLM REQUEST (stream) → %s\n%s", url, json.dumps(body_dict, indent=2))
 
     for attempt in range(3):
