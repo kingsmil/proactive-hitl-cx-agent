@@ -204,8 +204,6 @@
                                 stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
                         Approvals
-                        <span id="queue-count" class="pane-tab-badge">{% if pending_count %}{{ pending_count }}
-                            pending{% endif %}</span>
                     </button>
                     <button class="pane-tab" id="tab-orders" hx-get="/orders" hx-target="#right-content"
                         hx-swap="innerHTML" onclick="activatePaneTab(this)">
@@ -220,9 +218,9 @@
                     <button class="pane-tab" id="tab-rules" hx-get="/rules" hx-target="#right-content"
                         hx-swap="innerHTML" onclick="activatePaneTab(this)">
                         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;">
-                            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2" fill="none"/>
-                            <path d="M8 4v4l2.5 1.5" stroke="currentColor" stroke-width="1.2"
-                                stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2" fill="none" />
+                            <path d="M8 4v4l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+                                stroke-linejoin="round" />
                         </svg>
                         Rules
                     </button>
@@ -293,14 +291,6 @@
         el.classList.add('active');
     }
 
-    // Mirror queue count to mobile badge
-    var qc = document.getElementById('queue-count');
-    var mb = document.getElementById('mobile-inbox-badge');
-    if (qc && mb) {
-        mb.textContent = qc.textContent;
-        new MutationObserver(function () { mb.textContent = qc.textContent; })
-            .observe(qc, { childList: true, characterData: true, subtree: true });
-    }
 
     // Scroll commune-content to bottom after HTMX swaps
     document.addEventListener('htmx:afterSwap', function (evt) {

@@ -33,14 +33,12 @@ def root() -> RedirectResponse:
 def chat_page(request: Request, session_id: str) -> Response:
     """Render the full operator dashboard for a session."""
     session = db.get_or_create_session(session_id)
-    pending_count = len(db.get_all_paused_sessions())
     return templates.TemplateResponse(
         "dashboard.html",
         {
             "request": request,
             "session_id": session_id,
             "session": session,
-            "pending_count": pending_count,
         },
     )
 

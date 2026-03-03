@@ -42,6 +42,22 @@ async def emit_thought(session_id: str, node: str, preview: str) -> None:
     await thought_queues[session_id].put(html)
 
 
+async def emit_event_log_entry(
+    session_id: str, node: str, preview: str, actor: str = "agent",
+) -> None:
+    """Push a live event-log row for message-based events (agent_reply, tool_call, etc.).
+
+    Unlike emit_thought, this does NOT persist to session_thoughts — the reload
+    path already synthesises these rows from the message history in the DB.
+    We only need the SSE push so the live event-log timeline stays current.
+    """
+    html = _jinja.get_template("partials/thought_entry.html").render(
+        session_id=session_id, node=node, preview=preview, actor=actor,
+    )
+    _ensure_thought_queue(session_id)
+    await thought_queues[session_id].put(html)
+
+
 async def emit_llm_thought(
     session_id: str,
     preview: str,

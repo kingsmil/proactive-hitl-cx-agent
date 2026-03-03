@@ -1,11 +1,9 @@
 {% if pending_sessions %}
-<span hx-swap-oob="innerHTML:#queue-count">{{ pending_sessions | length }} pending</span>
 
 {% for session in pending_sessions %}
 {% include "partials/action_card.html" %}
 {% endfor %}
 {% else %}
-<span hx-swap-oob="innerHTML:#queue-count"></span>
 
 <div style="
         display: flex;
@@ -19,8 +17,9 @@
         padding: 20px;
     ">
     <svg width="36" height="36" viewBox="0 0 36 36" fill="none" style="opacity:0.3;">
-        <circle cx="18" cy="18" r="13" stroke="currentColor" stroke-width="1.2" fill="none"/>
-        <polyline points="12,18 16,22 24,14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="18" cy="18" r="13" stroke="currentColor" stroke-width="1.2" fill="none" />
+        <polyline points="12,18 16,22 24,14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"
+            stroke-linejoin="round" />
     </svg>
     <span style="font-family:var(--font-display); font-size:10px; letter-spacing:0.2em; text-transform:uppercase;">All
         clear</span>

@@ -4,6 +4,10 @@
 {% elif node == "hitl" %}{% set dot = "dot-gold" %}
 {% elif node == "reason" %}{% set dot = "dot-sky" %}
 {% elif node == "llm" %}{% set dot = "dot-lav" %}
+{% elif node == "agent_reply" %}{% set dot = "dot-sage" %}
+{% elif node == "user_message" %}{% set dot = "dot-gold" %}
+{% elif node == "tool_call" %}{% set dot = "dot-sky" %}
+{% elif node == "tool_result" %}{% set dot = "dot-dim" %}
 {% else %}{% set dot = "dot-dim" %}{% endif %}
 <div class="etl-row">
     <div class="etl-spine">
@@ -12,8 +16,8 @@
     </div>
     <div class="etl-body">
         <div class="etl-header">
-            <span class="etl-type">{{ node | title }}</span>
-            <span class="etl-actor">agent</span>
+            <span class="etl-type">{{ node | replace('_', ' ') | title }}</span>
+            <span class="etl-actor">{{ actor | default("agent") }}</span>
         </div>
         <div class="etl-desc">{{ preview }}</div>
     </div>

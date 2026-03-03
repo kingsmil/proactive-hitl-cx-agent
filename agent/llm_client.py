@@ -20,7 +20,7 @@ _ssl_ctx = ssl.create_default_context(cafile=certifi.where())
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 GEMINI_URL     = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 
-DEFAULT_MODEL        = "openai/gpt-oss-120b"
+DEFAULT_MODEL        = "bytedance-seed/seed-1.6-flash"
 GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
 
 SYSTEM_PROMPT = """You are CustomerClaw, a concise customer-support assistant for an e-commerce platform.
@@ -28,7 +28,9 @@ SYSTEM_PROMPT = """You are CustomerClaw, a concise customer-support assistant fo
 Guidelines:
 - **CRITICAL**: The first thing you must do when a customer asks about an order is to ask for their phone number for verification. Do not proceed until you have their phone number.
 - Always call check_order_status before making any decisions about an order. Make sure to provide the phone number they gave you.
-- Call issue_refund only when the customer is clearly owed a refund and you have confirmed the order status matches what they say. Do NOT call issue_refund if the order is already in 'cancelled' state; instead, inform the customer that their refund will be automatically credited.
+- **MANDATORY**: When a customer requests a refund, you MUST call the `issue_refund` tool. NEVER respond with only a text message promising or confirming a refund — you do not have the ability to process refunds without the tool. If the customer says "I want a refund", "please refund me", "can I get my money back", or anything similar, you MUST call `issue_refund` with the correct order_id, customer_phone, amount, and reason. Skipping the tool call means the refund will NOT be processed.
+- Do NOT call issue_refund if the order is already in 'cancelled' state; instead, inform the customer that their refund will be automatically credited.
+- Never promise to perform an action (refund, status change, etc.) without actually calling the corresponding tool. If you cannot call the tool, explain why.
 - Be brief and empathetic. One short paragraph per reply.
 - Never invent order details — only use what the tools return.
 - When you have order details, reference the customer by name and mention the product they ordered.
@@ -83,11 +85,56 @@ def _build_llm_endpoint_config():
     return url, model, headers
 
 
+def _sanitize_message(msg: dict) -> dict:
+    """Strip non-standard fields from a message dict before sending to the LLM.
+
+    Some providers (e.g. Alibaba/Qwen via OpenRouter) reject requests that
+    contain extra keys like ``timestamp`` or ``is_manual``.  This keeps only
+    the keys that the OpenAI chat-completions schema expects.
+    """
+    ALLOWED_KEYS = {"role", "content", "tool_calls", "tool_call_id", "name"}
+    clean = {k: v for k, v in msg.items() if k in ALLOWED_KEYS}
+
+    # Coerce content to a string if it's somehow a dict/list (some providers
+    # reject non-string content with a confusing "got an object" error).
+    content = clean.get("content")
+    if content is not None and not isinstance(content, str):
+        clean["content"] = json.dumps(content) if isinstance(content, (dict, list)) else str(content)
+
+    # Ensure content is a string for roles that require it.
+    # assistant messages may legitimately have content=None when tool_calls
+    # are present, but user/system/tool messages must always be strings.
+    if clean.get("role") in ("user", "system", "tool") and clean.get("content") is None:
+        clean["content"] = ""
+
+    # Tool messages MUST have a tool_call_id per the OpenAI spec.
+    # If missing, convert to a system message to preserve the information
+    # without breaking the conversation structure (dropping would orphan
+    # the preceding assistant tool_call message).
+    if clean.get("role") == "tool" and not clean.get("tool_call_id"):
+        log.warning("Converting tool message with no tool_call_id to system: %s", clean.get("content", "")[:100])
+        clean["role"] = "system"
+        clean.pop("tool_call_id", None)
+
+    return clean
+
+
+def _sanitize_history(history: list[dict]) -> list[dict]:
+    """Sanitize a full message history, dropping irrecoverably malformed entries."""
+    result = []
+    for msg in history:
+        cleaned = _sanitize_message(msg)
+        if cleaned is not None:
+            result.append(cleaned)
+    return result
+
+
 def _build_llm_request_payload(model, history, tools, stream=False, system_prompt=None):
     """Build the JSON request body for the LLM API call."""
+    sanitized_history = _sanitize_history(history)
     body_dict = {
         "model": model,
-        "messages": [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}] + history,
+        "messages": [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}] + sanitized_history,
         "tools": tools,
         "tool_choice": "auto",
     }
@@ -206,7 +253,10 @@ def _read_streaming_response_chunks(req, push_chunk_callback: Optional[Callable[
             except ValueError:
                 continue
 
-            choice = chunk.get("choices", [{}])[0]
+            choices = chunk.get("choices") or []
+            if not choices:
+                continue
+            choice = choices[0]
             delta  = choice.get("delta", {})
             fr     = choice.get("finish_reason")
             if fr:

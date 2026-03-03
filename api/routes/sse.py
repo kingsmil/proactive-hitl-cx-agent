@@ -58,7 +58,13 @@ async def chat_stream(
     """SSE stream of chat tokens and final replies for a session."""
     _ensure_stream_queue(session_id)
     queue = stream_queues[session_id]
-    _drain_queue(queue)
+    # Only drain if the session is idle — when the session is RUNNING,
+    # the agent may have already pushed events (done/append) before the
+    # browser's SSE reconnection completed after a chat pane swap.
+    import db
+    session = db.get_session(session_id)
+    if not session or session.get("status") != db.RUNNING:
+        _drain_queue(queue)
 
     async def generator() -> AsyncGenerator:
         while True:

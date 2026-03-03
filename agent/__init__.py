@@ -15,12 +15,12 @@ from agent.sse_events import (
     _ensure_thought_queue,
     _ensure_stream_queue,
     emit_thought,
+    emit_event_log_entry,
     emit_llm_thought,
     emit_error,
     emit_chat_append,
     emit_stream_done,
     emit_stream_error,
-    render_queue_badge,
 )
 from agent.telegram_client import send_telegram_message
 
@@ -87,6 +87,19 @@ async def _run_agent_body(session_id: str) -> None:
     is_proactive = (session or {}).get("channel") == "proactive"
     _system_prompt = PROACTIVE_SYSTEM_PROMPT if is_proactive else None
 
+    # The streaming placeholder (#reply-body-{session_id}) only exists when a
+    # web user just submitted a message — the HTTP response renders chat_pane.html
+    # which creates it.  It does NOT exist when:
+    #   • The session is from an external channel (Telegram, proactive)
+    #   • We're re-entering after HITL (approve or reject) — the ack already
+    #     consumed the placeholder via emit_stream_done
+    # We detect these by checking that channel is web AND the last message in
+    # history is from "user" (i.e. freshly submitted, not a tool-rejection msg).
+    channel = (session or {}).get("channel", "web")
+    history_peek = db.get_history(session_id)
+    last_role = history_peek[-1].get("role", "") if history_peek else ""
+    _has_streaming_placeholder = channel == "web" and last_role == "user"
+
     # ── Phase A: resume from an approved HITL action ──────────────────────────
     #
     # `from_hitl` remembers that the streaming bubble was already consumed by the
@@ -107,6 +120,7 @@ async def _run_agent_body(session_id: str) -> None:
             "tool_call_id": pending["tool_call_id"],
             "content": result,
         })
+        await emit_event_log_entry(session_id, "tool_result", str(result)[:200], actor="system")
         db.delete_pending_action(session_id)
 
     # ── Phase B: main LLM loop ────────────────────────────────────────────────
@@ -166,6 +180,7 @@ async def _run_agent_body(session_id: str) -> None:
                         "tool_call_id": tc["id"],
                         "content": result,
                     })
+                    await emit_event_log_entry(session_id, "tool_result", str(result)[:200], actor="system")
 
                 elif name in HITL_TOOLS:
                     # Pre-flight validation for refunds
@@ -208,11 +223,13 @@ async def _run_agent_body(session_id: str) -> None:
                     db.set_session_status(session_id, db.PAUSED)
                     ack = get_ack_message(name, args)
                     db.append_message(session_id, "assistant", ack)
-                    # Streaming bubble IS in the DOM (session was RUNNING from the
-                    # user's last message), so emit_stream_done correctly replaces it.
-                    pending_count = len(db.get_all_paused_sessions())
-                    oob_badge = render_queue_badge(pending_count)
-                    await emit_stream_done(session_id, ack, oob_html=oob_badge)
+                    await emit_event_log_entry(session_id, "agent_reply", ack)
+                    if _has_streaming_placeholder:
+                        # Web chat: streaming bubble is in the DOM, replace it.
+                        await emit_stream_done(session_id, ack)
+                    else:
+                        # External channel (Telegram, etc.): no placeholder exists.
+                        await emit_chat_append(session_id, ack)
                     await _dispatch_reply(session_id, ack)
                     return  # halt — agent re-entered via /actions/approve
 
@@ -220,12 +237,14 @@ async def _run_agent_body(session_id: str) -> None:
         else:  # finish_reason == "stop"
             await emit_thought(session_id, "reason", "Composing reply…")
             db.append_message(session_id, "assistant", msg["content"])
-            if from_hitl:
+            await emit_event_log_entry(session_id, "agent_reply", msg["content"])
+            if from_hitl or not _has_streaming_placeholder:
                 # Post-HITL: streaming bubble was already replaced by the ack.
-                # Append a fresh complete bubble to commune-content instead.
+                # External channel: no streaming placeholder exists in the DOM.
+                # In both cases, append a fresh complete bubble instead.
                 await emit_chat_append(session_id, msg["content"])
             else:
-                # Normal flow: replace the streaming placeholder with the final reply.
+                # Normal web chat flow: replace the streaming placeholder.
                 await emit_stream_done(session_id, msg["content"])
             await _dispatch_reply(session_id, msg["content"])
             db.set_session_status(session_id, db.DONE)
